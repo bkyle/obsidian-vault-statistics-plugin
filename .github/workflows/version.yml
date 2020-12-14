@@ -1,0 +1,44 @@
+name: Bump Version
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  workflow_dispatch:
+    inputs:
+      type:
+        description: 'Type of version bump (major, minor, patch)'
+        required: true
+        default: 'patch'
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          token: ${{ secrets.PAT }}
+      - name: Update version
+        id: version
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          npm version ${{ github.event.inputs.type }}
+          echo "::set-output name=tag::$(git describe --abbrev=0)"
+      - name: Update manifest
+        uses: jossef/action-set-json-field@v1
+        with:
+          file: manifest.json
+          field: version
+          value: ${{ steps.version.outputs.tag }}
+      - name: Commit
+        run: |
+          git branch --show-current
+          git add -u
+          git commit --amend --no-edit
+          git tag -fa ${{ steps.version.outputs.tag }} -m "${{ steps.version.outputs.tag }}"
+      - name: Push
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{secrets.PAT}}
+          tags: true
+          branch: ${{github.ref}}

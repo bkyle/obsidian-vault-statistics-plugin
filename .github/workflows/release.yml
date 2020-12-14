@@ -1,0 +1,62 @@
+name: Release Obsidian Plugin
+on:
+  push:
+    tags: '*'
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Version
+        id: version
+        run: |
+          echo "::set-output name=tag::$(git describe --abbrev=0)"
+      - name: Build
+        run: |
+          npm install
+          npm run build
+      - name: Package
+        run: |
+          mkdir "${{ github.event.repository.name }}"
+          cp main.js README.md manifest.json "${{ github.event.repository.name }}"
+          zip -r "${{ github.event.repository.name }}.zip" "${{ github.event.repository.name }}"
+      - name: Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+          VERSION: ${{ github.ref }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload .zip
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ github.event.repository.name }}.zip
+          asset_name: ${{ github.event.repository.name }}-${{steps.version.outputs.tag}}.zip
+          asset_content_type: application/zip
+      - name: Upload main.js
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./main.js
+          asset_name: main.js
+          asset_content_type: text/javascript
+      - name: Upload manifest.json
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: manifest.json
+          asset_name: manifest.json
+          asset_content_type: application/json
