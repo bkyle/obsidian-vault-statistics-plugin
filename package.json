@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-copy-block-ref-plugin",
+  "name": "obsidian-kitchen-sink-plugin",
   "version": "0.1.0",
-  "description": "Copies a reference to the active block.",
+  "description": "Various utilities.",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
