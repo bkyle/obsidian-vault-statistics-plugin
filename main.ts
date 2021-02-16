@@ -1,11 +1,12 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, TAbstractFile } from 'obsidian';
 import { clipboard } from 'electron';
 import { copyActiveBlockLinkToClipboard } from 'lib/copy-block-ref';
+import { stat } from 'fs';
 
 
 export default class KitchenSinkPlugin extends Plugin {
 
-	private statusBarItem: HTMLElement = null;
+	private statusBarItem: StatisticsStatusBarItem = null;
 
 	onload() {
 		console.log('Loading obsidian-kitchen-sink-plugin');
@@ -15,37 +16,63 @@ export default class KitchenSinkPlugin extends Plugin {
 			callback: () => {
 				copyActiveBlockLinkToClipboard(this.app.workspace.activeLeaf.view);
 			},
-			// checkCallback: (checking: boolean) => {
-			// 	let leaf = this.app.workspace.activeLeaf;
-			// 	if (leaf) {
-			// 		if (!checking) {
-			// 			new SampleModal(this.app).open();
-			// 		}
-			// 		return true;
-			// 	}
-			// 	return false;
-			// }
 		});
 
-		// console.log("Registering modify event handler");
-		// this.registerEvent(this.app.vault.on('modify', (file: TAbstractFile) => {
-		// 	console.log(`${file.name} modified`);
-		// }));
-		
-		// ['modify', 'create', 'closed', 'delete', 'rename'].forEach((event) => {
-		// 	this.handle(this.app.vault, event, (f: TAbstractFile) => {
-		// 		console.log(`received ${event}: TAbstractFile(path: '${f.path}', name: '${f.name}')`);
-		// 	});
-		// });
-		
+		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
 
-		this.statusBarItem = this.addStatusBarItem();
-		this.update();
-		this.registerInterval(window.setInterval(() => {this.update()}, 5000));
+		// create and delete events will clearly change the statistics, hence a shorter timeout.
+		this.registerEvent(this.app.vault.on('create', () => { this.statusBarItem.recalculateAndRefresh(100) }));
+		this.registerEvent(this.app.vault.on('delete', () => { this.statusBarItem.recalculateAndRefresh(100) }));
+
+		// modifications to files may impact statistics, so update less frequently.
+		this.registerEvent(this.app.vault.on('modify', () => { this.statusBarItem.recalculateAndRefresh(2000)}));
+	}
+}
+
+class StatisticsStatusBarItem {
+	
+	// handle of the application to pull stats from.
+	private app: App;
+
+	// handle of the status bar item to draw into.
+	private statusBarItem: HTMLElement;
+
+	// window timeout for deferred recalculate and refresh.
+	private recalculateAndRefreshTimeout: any;
+
+	// raw stats
+	private stats: Record<string, number> = {notes: 0, links: 0, files: 0, attachments: 0};
+
+	// keys of `stats` in the order to cycle through them when the status bar item is clicked.
+	private displayedStats: string[] = [ "notes", "links", "files", "attachments"];
+
+	// index of the currently displayed stat.
+	private displayedStatIndex = 0;
+
+	constructor (app: App, statusBarItem: HTMLElement) {
+		this.app = app;
+		this.statusBarItem = statusBarItem;
+		this.statusBarItem.onClickEvent(() => {this.onclick()});
 	}
 
-	private calculateStatistics() {
-		let stats = { files: 0, notes: 0, attachments: 0, links: 0};
+	private refresh() {
+		let title = [];
+		title.push(`${this.stats.notes} notes`);
+		title.push(`${this.stats.attachments} attachments`);
+		title.push(`${this.stats.files} files`);
+		title.push(`${this.stats.links} links`);
+
+		this.statusBarItem.innerText = `${this.stats[this.displayedStats[this.displayedStatIndex]]} ${this.displayedStats[this.displayedStatIndex]}`;
+		this.statusBarItem.title = title.join('\n');
+	}
+
+	private onclick() {
+		this.displayedStatIndex = (this.displayedStatIndex + 1) % this.displayedStats.length;
+		this.refresh();
+	}
+
+	private recalculate() {
+		let stats = {notes: 0, links: 0, files: 0, attachments: 0};
 		this.app.vault.getFiles().forEach((f) => {
 			stats.files += 1;
 			if (f.extension === 'md') {
@@ -55,31 +82,25 @@ export default class KitchenSinkPlugin extends Plugin {
 			}
 			stats.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
 		});
-		return stats;
+
+		this.stats = stats;
 	}
 
-	private update() {
-		let stats = this.calculateStatistics();
+	public recalculateAndRefresh(timeout?: number) {
+		// If there's an existing timeout it can be cleared since we'll either be
+		// deferring it further into the future or performing an immediate refresh
+		// which would invalidate the need to refresh again in a short timeframe.
+		if (this.recalculateAndRefreshTimeout) {
+			window.clearTimeout(this.recalculateAndRefreshTimeout);
+		}
 
-		let title = [];
-		title.push(`${stats.notes} notes`);
-		title.push(`${stats.attachments} attachments`);
-		title.push(`${stats.files} files`);
-		title.push(`${stats.links} links`);
-
-		this.statusBarItem.innerText = `${stats.notes} notes`;
-		this.statusBarItem.title = title.join('\n');
-
+		if (timeout) {
+			this.recalculateAndRefreshTimeout = window.setTimeout(() => { this.recalculateAndRefresh()}, timeout);
+		} else {
+			this.recalculate();
+			this.refresh();
+		}
 	}
-
-	// private handle(obj: any, event: string, handleFn?: (o: any) => any) {
-	// 	if (!handleFn) {
-	// 		handleFn = function(o: any) {
-	// 			console.log(`received ${event}: ${typeof o}`);
-	// 		}
-	// 	}
-	// 	console.log(`registering ${event} handler`);
-	// 	this.registerEvent(obj.on(event, handleFn));
-	// }
-
 }
+
+
