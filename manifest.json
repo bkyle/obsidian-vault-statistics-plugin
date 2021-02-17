@@ -1,9 +1,9 @@
 {
-	"id": "obsidian-kitchen-sink-plugin",
-	"name": "Kitchen Sink",
-	"version": "0.1.0",
-	"minAppVersion": "0.9.12",
-	"description": "Various utilities",
-	"author": "Bryan Kyle",
-	"isDesktopOnly": false
+  "id": "obsidian-kitchen-sink-plugin",
+  "name": "Kitchen Sink",
+  "version": "v0.1.1",
+  "minAppVersion": "0.9.12",
+  "description": "Various utilities",
+  "author": "Bryan Kyle",
+  "isDesktopOnly": false
 }
