@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
       - name: Update version
         id: version
         run: |
@@ -39,6 +39,6 @@ jobs:
       - name: Push
         uses: ad-m/github-push-action@v0.6.0
         with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
+          github_token: ${{secrets.PAT}}
           tags: true
           branch: ${{github.ref}}
