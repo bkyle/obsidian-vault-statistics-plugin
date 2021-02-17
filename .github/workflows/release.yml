@@ -13,7 +13,7 @@ jobs:
       - name: Version
         id: version
         run: |
-          echo "::set-output name=tag::$(git describe --abbrev=0)"
+          echo "::set-output name=tag::$(git describe --exact-match --tags HEAD | head -n1)"
       - name: Build
         run: |
           npm install
