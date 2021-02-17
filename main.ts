@@ -1,22 +1,11 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, TAbstractFile } from 'obsidian';
-import { clipboard } from 'electron';
-import { copyActiveBlockLinkToClipboard } from 'lib/copy-block-ref';
-import { stat } from 'fs';
+import { App, Plugin } from 'obsidian';
 
-
-export default class KitchenSinkPlugin extends Plugin {
+export default class StatisticsPlugin extends Plugin {
 
 	private statusBarItem: StatisticsStatusBarItem = null;
 
 	onload() {
-		console.log('Loading obsidian-kitchen-sink-plugin');
-		this.addCommand({
-			id: 'copy-block-ref',
-			name: 'Copy Block Reference',
-			callback: () => {
-				copyActiveBlockLinkToClipboard(this.app.workspace.activeLeaf.view);
-			},
-		});
+		console.log('Loading vault-statistics Plugin');
 
 		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
 
