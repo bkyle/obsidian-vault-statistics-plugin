@@ -1,7 +1,8 @@
 name: Release Obsidian Plugin
 on:
   push:
-    tags: v*
+    tags:
+    - '*'
 jobs:
   release:
     runs-on: ubuntu-latest
