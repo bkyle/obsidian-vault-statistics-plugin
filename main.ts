@@ -18,6 +18,14 @@ export default class StatisticsPlugin extends Plugin {
 	}
 }
 
+interface Statistics {
+	readonly [index: string] : number;
+	notes: number;
+	links: number;
+	files: number;
+	attachments: number;
+}
+
 class StatisticsStatusBarItem {
 	
 	// handle of the application to pull stats from.
@@ -30,7 +38,7 @@ class StatisticsStatusBarItem {
 	private recalculateAndRefreshTimeout: any;
 
 	// raw stats
-	private stats: Record<string, number> = {notes: 0, links: 0, files: 0, attachments: 0};
+	private stats: Statistics = {notes: 0, links: 0, files: 0, attachments: 0};
 
 	// keys of `stats` in the order to cycle through them when the status bar item is clicked.
 	private displayedStats: string[] = [ "notes", "links", "files", "attachments"];
