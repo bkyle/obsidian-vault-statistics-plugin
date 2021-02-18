@@ -1,4 +1,4 @@
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, debounce } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
@@ -9,12 +9,11 @@ export default class StatisticsPlugin extends Plugin {
 
 		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
 
-		// create and delete events will clearly change the statistics, hence a shorter timeout.
-		this.registerEvent(this.app.vault.on('create', () => { this.statusBarItem.recalculateAndRefresh(100) }));
-		this.registerEvent(this.app.vault.on('delete', () => { this.statusBarItem.recalculateAndRefresh(100) }));
-
-		// modifications to files may impact statistics, so update less frequently.
-		this.registerEvent(this.app.vault.on('modify', () => { this.statusBarItem.recalculateAndRefresh(2000)}));
+		this.registerEvent(this.app.metadataCache.on('resolved',
+													 debounce(
+														 () => {
+															 this.statusBarItem.update();
+														 }, 100, true)));
 	}
 }
 
@@ -33,9 +32,6 @@ class StatisticsStatusBarItem {
 
 	// handle of the status bar item to draw into.
 	private statusBarItem: HTMLElement;
-
-	// window timeout for deferred recalculate and refresh.
-	private recalculateAndRefreshTimeout: any;
 
 	// raw stats
 	private stats: Statistics = {notes: 0, links: 0, files: 0, attachments: 0};
@@ -68,7 +64,7 @@ class StatisticsStatusBarItem {
 		this.refresh();
 	}
 
-	private recalculate() {
+	public update() {
 		let stats = {notes: 0, links: 0, files: 0, attachments: 0};
 		this.app.vault.getFiles().forEach((f) => {
 			stats.files += 1;
@@ -81,23 +77,6 @@ class StatisticsStatusBarItem {
 		});
 
 		this.stats = stats;
-	}
-
-	public recalculateAndRefresh(timeout?: number) {
-		// If there's an existing timeout it can be cleared since we'll either be
-		// deferring it further into the future or performing an immediate refresh
-		// which would invalidate the need to refresh again in a short timeframe.
-		if (this.recalculateAndRefreshTimeout) {
-			window.clearTimeout(this.recalculateAndRefreshTimeout);
-		}
-
-		if (timeout) {
-			this.recalculateAndRefreshTimeout = window.setTimeout(() => { this.recalculateAndRefresh()}, timeout);
-		} else {
-			this.recalculate();
-			this.refresh();
-		}
+		this.refresh();
 	}
 }
-
-
