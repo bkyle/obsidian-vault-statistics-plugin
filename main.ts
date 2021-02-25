@@ -4,16 +4,13 @@ export default class StatisticsPlugin extends Plugin {
 
 	private statusBarItem: StatisticsStatusBarItem = null;
 
+	update: () => void = debounce(() => { this.statusBarItem.update(); }, 100, true);
+
 	onload() {
 		console.log('Loading vault-statistics Plugin');
-
 		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
-
-		this.registerEvent(this.app.metadataCache.on('resolved',
-													 debounce(
-														 () => {
-															 this.statusBarItem.update();
-														 }, 100, true)));
+		this.registerEvent(this.app.metadataCache.on('resolved', this.update));
+		this.update();
 	}
 }
 
