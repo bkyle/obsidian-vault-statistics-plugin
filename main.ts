@@ -17,12 +17,70 @@ export default class StatisticsPlugin extends Plugin {
 	}
 }
 
+abstract class Formatter {
+	public abstract format(value: number): string;
+}
+
+class DecimalUnitFormatter extends Formatter {
+	private unit: string;
+	private numberFormat: Intl.NumberFormat;
+
+	constructor(unit: string) {
+		super()
+		this.unit = unit;
+		this.numberFormat = Intl.NumberFormat('en-US', { style: 'decimal',
+														 minimumSignificantDigits: 2,
+														 maximumSignificantDigits: 2 });
+	}
+
+	public format(value: number): string {
+		return `${this.numberFormat.format(value)} ${this.unit}`
+	}
+}
+
+abstract class ScalingUnitFormatter extends Formatter {
+
+	private numberFormat: Intl.NumberFormat;
+
+	constructor(numberFormat: Intl.NumberFormat) {
+		super();
+		this.numberFormat = numberFormat;
+	}
+
+	protected abstract scale(value: number): [number, string];
+
+	public format(value: number): string {
+		let [scaledValue, scaledUnit] = this.scale(value);
+		return `${this.numberFormat.format(scaledValue)} ${scaledUnit}`
+	}
+
+}
+
+class BytesFormatter extends ScalingUnitFormatter {
+
+	constructor() {
+		super(Intl.NumberFormat('en-US', { style: 'decimal',
+										   minimumFractionDigits: 2,
+										   maximumFractionDigits: 2 }));
+	}
+
+	protected scale(value: number)	: [number, string] {
+		let units = ["bytes", "KB", "MB", "GB", "TB", "PB"]
+		while (value > 1024 && units.length > 0) {
+			value = value / 1024
+			units.shift();
+		}
+		return [value, units[0]];
+	}
+}
+
 interface Statistics {
 	readonly [index: string] : number;
 	notes: number;
 	links: number;
 	files: number;
 	attachments: number;
+	size: number;
 }
 
 class StatisticsStatusBarItem {
@@ -34,13 +92,16 @@ class StatisticsStatusBarItem {
 	private statusBarItem: HTMLElement;
 
 	// raw stats
-	private stats: Statistics = {notes: 0, links: 0, files: 0, attachments: 0};
+	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
 
-	// keys of `stats` in the order to cycle through them when the status bar item is clicked.
-	private displayedStats: string[] = [ "notes", "links", "files", "attachments"];
+	private formatters = [(s: Statistics) => {return new DecimalUnitFormatter("notes").format(s.notes)},
+						  (s: Statistics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)},
+						  (s: Statistics) => {return new DecimalUnitFormatter("files").format(s.files)},
+						  (s: Statistics) => {return new DecimalUnitFormatter("links").format(s.links)},
+						  (s: Statistics) => {return new BytesFormatter().format(s.size)}];
 
 	// index of the currently displayed stat.
-	private displayedStatIndex = 0;
+	private displayedStatisticIndex = 0;
 
 	constructor (app: App, statusBarItem: HTMLElement) {
 		this.app = app;
@@ -49,34 +110,31 @@ class StatisticsStatusBarItem {
 	}
 
 	private refresh() {
-		let title = [];
-		title.push(`${this.stats.notes} notes`);
-		title.push(`${this.stats.attachments} attachments`);
-		title.push(`${this.stats.files} files`);
-		title.push(`${this.stats.links} links`);
-
-		this.statusBarItem.innerText = `${this.stats[this.displayedStats[this.displayedStatIndex]]} ${this.displayedStats[this.displayedStatIndex]}`;
-		this.statusBarItem.title = title.join('\n');
+		let formattedStatistics: Array<string> = [];
+		this.formatters.forEach(formatter => formattedStatistics.push(formatter(this.statistics)));
+		this.statusBarItem.innerText = formattedStatistics[this.displayedStatisticIndex];
+		this.statusBarItem.title = formattedStatistics.join('\n');
 	}
 
 	private onclick() {
-		this.displayedStatIndex = (this.displayedStatIndex + 1) % this.displayedStats.length;
+		this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.formatters.length;
 		this.refresh();
 	}
 
 	public update() {
-		let stats = {notes: 0, links: 0, files: 0, attachments: 0};
+		let statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
 		this.app.vault.getFiles().forEach((f) => {
-			stats.files += 1;
+			statistics.files += 1;
 			if (f.extension === 'md') {
-				stats.notes += 1;
+				statistics.notes += 1;
 			} else {
-				stats.attachments += 1;
+				statistics.attachments += 1;
 			}
-			stats.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
+			statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
+			statistics.size += f.stat.size;
 		});
 
-		this.stats = stats;
+		this.statistics = statistics;
 		this.refresh();
 	}
 }
