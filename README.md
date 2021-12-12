@@ -11,7 +11,12 @@ After the plugin is installed and enabled you will see a new item appear in the 
 
 ## Version History
 
-### 0.4
+### 0.0.5
+
+- Displayed statistics are formatted with grouping for increase readability.
+- Added Vault Size statistic which calculates the total size of all files in the vault that are understood by Obsidian  The display value is scaled to the appropriate unit. 
+
+### 0.0.4
 
 - Statistics will be calculated automatically as soon as the plugin loads.
 
