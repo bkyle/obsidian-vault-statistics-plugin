@@ -116,6 +116,10 @@ class StatisticView {
 	refresh(s: Statistics) {
 		this.containerEl.setText(this.formatter(s));
 	}
+
+	getText(): string {
+		return this.containerEl.getText();
+	}
 }
 
 class StatisticsStatusBarItem {
@@ -162,7 +166,7 @@ class StatisticsStatusBarItem {
 			view.setActive(this.displayedStatisticIndex == i).refresh(this.statistics);
 		});
 
-		// TODO: statusBarItem.title should contain all of the formatted statistics
+		this.statusBarItem.title = this.statisticViews.map(view => view.getText()).join("\n");
 	}
 
 	private onclick() {
