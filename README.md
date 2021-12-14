@@ -11,10 +11,14 @@ After the plugin is installed and enabled you will see a new item appear in the 
 
 ## Version History
 
+### 0.0.6
+
+- FIXED: Reported values only contain 2 significant digits (#7)
+
 ### 0.0.5
 
 - Displayed statistics are formatted with grouping for increase readability.
-- Added Vault Size statistic which calculates the total size of all files in the vault that are understood by Obsidian  The display value is scaled to the appropriate unit. 
+- Added Vault Size statistic which calculates the total size of all files in the vault that are understood by Obsidian  The display value is scaled to the appropriate unit.  (#5)
 
 ### 0.0.4
 
