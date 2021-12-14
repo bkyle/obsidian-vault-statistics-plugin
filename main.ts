@@ -25,9 +25,7 @@ class DecimalUnitFormatter extends Formatter {
 	constructor(unit: string) {
 		super()
 		this.unit = unit;
-		this.numberFormat = Intl.NumberFormat('en-US', { style: 'decimal',
-														 minimumSignificantDigits: 2,
-														 maximumSignificantDigits: 2 });
+		this.numberFormat = Intl.NumberFormat('en-US', { style: 'decimal' });
 	}
 
 	public format(value: number): string {
