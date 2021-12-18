@@ -9,7 +9,41 @@ After the plugin is installed and enabled you will see a new item appear in the 
 - Click on the status bar item to cycle through the available statistics.
 - Hover over the status bar item to see all of the available statistics.
 
+## Advanced Usage
+
+### Showing All Statistics
+
+All statistics can be shown by creating and enabling a CSS snippet with the following content.
+
+```css
+/* Show all vault statistics. */
+.obsidian-vault-statistics--item {
+    display: initial !important;
+}
+```
+
+### Showing Selected Statistics
+
+Similarly to the above, one can show certain statistics using a similar method to the above.  Below is a snippet that hides all by the notes and attachments statistics.  The snippet can be modified to include more or different statistics.
+
+``` css
+/* Hide all statistics. */
+.obsidian-vault-statistics--item {
+    display: none !important;
+}
+
+/* Always show the notes and attachments statistics. */
+.obsidian-vault-statistics--item-notes,
+.obsidian-vault-statistics--item-attachments {
+    display: initial !important;
+}
+```
+
 ## Version History
+
+### 0.0.7
+
+- Initial support for displaying multiple statistics at the same time. (#6)
 
 ### 0.0.6
 
