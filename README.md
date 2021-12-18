@@ -41,7 +41,7 @@ Similarly to the above, one can show certain statistics using a similar method t
 
 ## Version History
 
-### 0.0.7
+### 0.0.8
 
 - Initial support for displaying multiple statistics at the same time. (#6)
 
