@@ -21,7 +21,7 @@ jobs:
       - name: Package
         run: |
           mkdir "${{ github.event.repository.name }}"
-          cp main.js README.md manifest.json "${{ github.event.repository.name }}"
+          cp main.js styles.css README.md manifest.json "${{ github.event.repository.name }}"
           zip -r "${{ github.event.repository.name }}.zip" "${{ github.event.repository.name }}"
       - name: Release
         id: create_release
