@@ -78,6 +78,48 @@ interface Statistics {
 	size: number;
 }
 
+class StatisticView {
+
+	private containerEl: HTMLElement;
+	private formatter: (s: Statistics) => string;
+
+	constructor(containerEl: HTMLElement) {
+		this.containerEl = containerEl.createSpan({cls: ["obsidian-vault-statistics--item"]});
+		this.setActive(false);
+	}
+
+	setStatisticName(name: string): StatisticView {
+		this.containerEl.addClass(`obsidian-vault-statistics--item-${name}`);
+		return this;
+	}
+
+	setFormatter(formatter: (s: Statistics) => string): StatisticView {
+		this.formatter = formatter;
+		return this;
+	}
+
+	setActive(isActive: boolean): StatisticView {
+		this.containerEl.removeClass("obsidian-vault-statistics--item--active");
+		this.containerEl.removeClass("obsidian-vault-statistics--item--inactive");
+
+		if (isActive) {
+			this.containerEl.addClass("obsidian-vault-statistics--item--active");
+		} else {
+			this.containerEl.addClass("obsidian-vault-statistics--item--inactive");
+		}
+
+		return this;
+	}
+
+	refresh(s: Statistics) {
+		this.containerEl.setText(this.formatter(s));
+	}
+
+	getText(): string {
+		return this.containerEl.getText();
+	}
+}
+
 class StatisticsStatusBarItem {
 	
 	// handle of the application to pull stats from.
@@ -89,30 +131,44 @@ class StatisticsStatusBarItem {
 	// raw stats
 	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
 
-	private formatters = [(s: Statistics) => {return new DecimalUnitFormatter("notes").format(s.notes)},
-						  (s: Statistics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)},
-						  (s: Statistics) => {return new DecimalUnitFormatter("files").format(s.files)},
-						  (s: Statistics) => {return new DecimalUnitFormatter("links").format(s.links)},
-						  (s: Statistics) => {return new BytesFormatter().format(s.size)}];
-
 	// index of the currently displayed stat.
 	private displayedStatisticIndex = 0;
+
+	private statisticViews: Array<StatisticView> = [];
 
 	constructor (app: App, statusBarItem: HTMLElement) {
 		this.app = app;
 		this.statusBarItem = statusBarItem;
+
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("notes").
+			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("notes").format(s.notes)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("attachments").
+			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("files").
+			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("files").format(s.files)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("links").
+			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("links").format(s.links)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("size").
+			setFormatter((s: Statistics) => {return new BytesFormatter().format(s.size)}));
+
 		this.statusBarItem.onClickEvent(() => {this.onclick()});
 	}
 
 	private refresh() {
-		let formattedStatistics: Array<string> = [];
-		this.formatters.forEach(formatter => formattedStatistics.push(formatter(this.statistics)));
-		this.statusBarItem.innerText = formattedStatistics[this.displayedStatisticIndex];
-		this.statusBarItem.title = formattedStatistics.join('\n');
+		this.statisticViews.forEach((view, i) => {
+			view.setActive(this.displayedStatisticIndex == i).refresh(this.statistics);
+		});
+
+		this.statusBarItem.title = this.statisticViews.map(view => view.getText()).join("\n");
 	}
 
 	private onclick() {
-		this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.formatters.length;
+		this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.statisticViews.length;
 		this.refresh();
 	}
 
