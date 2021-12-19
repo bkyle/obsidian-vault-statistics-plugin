@@ -18,10 +18,18 @@ abstract class Formatter {
 	public abstract format(value: number): string;
 }
 
+/**
+ * {@link DecimalUnitFormatter} provides an implementation of {@link Formatter}
+ * that outputs a integers in a standard decimal format with grouped thousands.
+ */
 class DecimalUnitFormatter extends Formatter {
 	private unit: string;
 	private numberFormat: Intl.NumberFormat;
 
+	/**
+	 * @param unit the unit of the value being formatted.
+	 * @constructor
+	 */
 	constructor(unit: string) {
 		super()
 		this.unit = unit;
@@ -33,15 +41,32 @@ class DecimalUnitFormatter extends Formatter {
 	}
 }
 
+/**
+ * {@link ScalingUnitFormatter}
+ */
 abstract class ScalingUnitFormatter extends Formatter {
 
 	private numberFormat: Intl.NumberFormat;
 
+	/**
+	 * @param numberFormat An instance of {@link Intl.NumberFormat} to use to
+	 * format the scaled value.
+	 */
 	constructor(numberFormat: Intl.NumberFormat) {
 		super();
 		this.numberFormat = numberFormat;
 	}
 
+	/**
+	 * Scales the passed raw value (in a base unit) to an appropriate value for
+	 * presentation and returns the scaled value as well as the name of the unit
+	 * that the returned value is in.
+	 *
+	 * @param value the value to be scaled.
+	 *
+	 * @returns {number,string} an array-like containing the numerical value and
+	 * the name of the unit that the value represents.
+	 */
 	protected abstract scale(value: number): [number, string];
 
 	public format(value: number): string {
@@ -51,6 +76,10 @@ abstract class ScalingUnitFormatter extends Formatter {
 
 }
 
+/**
+ * {@link BytesFormatter} formats values that represent a size in bytes as a
+ * value in bytes, kilobytes, megabytes, gigabytes, etc.
+ */
 class BytesFormatter extends ScalingUnitFormatter {
 
 	constructor() {
@@ -78,26 +107,52 @@ interface Statistics {
 	size: number;
 }
 
+/**
+ * {@link StatisticView} is responsible for maintaining the DOM representation
+ * of a given statistic.
+ */
 class StatisticView {
 
+	/** Root node for the {@link StatisticView}. */
 	private containerEl: HTMLElement;
+
+	/** Formatter that extracts and formats a value from a {@link Statistics} instance. */
 	private formatter: (s: Statistics) => string;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param containerEl The parent element for the view.
+	 */
 	constructor(containerEl: HTMLElement) {
 		this.containerEl = containerEl.createSpan({cls: ["obsidian-vault-statistics--item"]});
 		this.setActive(false);
 	}
 
+	/**
+	 * Sets the name of the statistic.
+	 */
 	setStatisticName(name: string): StatisticView {
 		this.containerEl.addClass(`obsidian-vault-statistics--item-${name}`);
 		return this;
 	}
 
+	/**
+	 * Sets the formatter to use to produce the content of the view.
+	 */
 	setFormatter(formatter: (s: Statistics) => string): StatisticView {
 		this.formatter = formatter;
 		return this;
 	}
 
+	/**
+	 * Updates the view with the desired active status.
+	 *
+	 * Active views have the CSS class `obsidian-vault-statistics--item-active`
+	 * applied, inactive views have the CSS class
+	 * `obsidian-vault-statistics--item-inactive` applied. These classes are
+	 * mutually exclusive.
+	 */
 	setActive(isActive: boolean): StatisticView {
 		this.containerEl.removeClass("obsidian-vault-statistics--item--active");
 		this.containerEl.removeClass("obsidian-vault-statistics--item--inactive");
@@ -111,10 +166,17 @@ class StatisticView {
 		return this;
 	}
 
+	/**
+	 * Refreshes the content of the view with content from the passed {@link
+	 * Statistics}.
+	 */
 	refresh(s: Statistics) {
 		this.containerEl.setText(this.formatter(s));
 	}
 
+	/**
+	 * Returns the text content of the view.
+	 */
 	getText(): string {
 		return this.containerEl.getText();
 	}
