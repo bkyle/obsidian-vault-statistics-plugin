@@ -1,4 +1,4 @@
-import { App, Plugin, debounce } from 'obsidian';
+import { App, Vault, TFile, Plugin, debounce } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
@@ -98,15 +98,6 @@ class BytesFormatter extends ScalingUnitFormatter {
 	}
 }
 
-interface Statistics {
-	readonly [index: string] : number;
-	notes: number;
-	links: number;
-	files: number;
-	attachments: number;
-	size: number;
-}
-
 /**
  * {@link StatisticView} is responsible for maintaining the DOM representation
  * of a given statistic.
@@ -182,6 +173,82 @@ class StatisticView {
 	}
 }
 
+interface Statistics {
+	readonly [index: string] : number;
+	notes: number;
+	links: number;
+	files: number;
+	attachments: number;
+	size: number;
+}
+
+class VaultMetricsCollector {
+
+	private vault: Vault;
+
+	constructor(vault: Vault) {
+		this.vault = vault;
+	}
+
+	// TODO: Refactor from StatisticsManager
+
+}
+
+interface FileMetrics {
+
+}
+
+class FileMetricsCollector {
+
+	private vault: Vault;
+	private fileMetrics: Map<TFile, FileMetrics>;
+
+	constructor(vault: Vault) {
+		this.vault = vault;
+	}
+
+	private updateFileMetrics(file: TFile) {
+		// TODO: Collect file-level metrics such as word count and update this.fileMetrics
+		// TODO: Handle cases where files are renamed or deleted.
+	}
+}
+
+class StatisticsManager {
+
+	/** Handle to the application to pull the statistics from. */
+	private app: App;
+
+	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
+
+	constructor(app: App) {
+		this.app = app;
+	}
+
+	private update() {
+		// TODO: Refactor to use FileMetricsCollector and VaultMetricsCollector
+		let statistics = {
+			notes: 0,
+			links: 0,
+			files: 0,
+			attachments: 0,
+			size: 0
+		};
+		this.app.vault.getFiles().forEach((f) => {
+			statistics.files += 1;
+			if (f.extension === 'md') {
+				statistics.notes += 1;
+			} else {
+				statistics.attachments += 1;
+			}
+			statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
+			statistics.size += f.stat.size;
+		});
+
+		this.statistics = statistics;
+	}
+
+}
+
 class StatisticsStatusBarItem {
 	
 	// handle of the application to pull stats from.
@@ -235,6 +302,7 @@ class StatisticsStatusBarItem {
 	}
 
 	public update() {
+		// TODO: Use StatisticsManager to collect statistics
 		let statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
 		this.app.vault.getFiles().forEach((f) => {
 			statistics.files += 1;
