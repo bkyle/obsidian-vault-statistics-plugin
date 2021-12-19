@@ -39,6 +39,22 @@ Similarly to the above, one can show certain statistics using a similar method t
 }
 ```
 
+## Building
+
+Build the plugin by running:
+
+``` sh
+npm run build
+```
+
+The plugin can be tested locally by copying the build output and resource files into the plugin directory in your vault.  The commands below assume the `PLUGIN_DIR` environment variable is set to the absolute path to the directory in your vault's plugins directory that the plugin should be copied into, i.e. `~/Notes/.obsidian/plugins/obsidian-vault-statistics-plugin`.
+
+``` sh
+cp -v manifest.json main.js styles.css "${PLUGIN_DIR}"
+```
+
+After copying, toggle the plugin on and off in settings or reload your vault.
+
 ## Version History
 
 ### 0.0.8
