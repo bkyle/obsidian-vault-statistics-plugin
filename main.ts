@@ -275,7 +275,7 @@ class FileMetricsCollector {
 		this.owner.registerEvent(this.vault.on("modify", (file: TFile) => { this.onfilemodified(file) }));
 		this.owner.registerEvent(this.vault.on("delete", (file: TFile) => { this.onfiledeleted(file) }));
 		this.owner.registerEvent(this.vault.on("rename", (file: TFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
-		// this.owner.registerEvent(this.metadataCache.on("resolve", this.onfilemodified));
+		this.owner.registerEvent(this.metadataCache.on("resolve", (file: TFile) => { this.onfilemodified(file) }));
 		// this.owner.registerEvent(this.metadataCache.on("changed", this.onfilemodified));
 
 		this.data = new Map();
@@ -335,7 +335,7 @@ class FileMetricsCollector {
 				metrics.files = 1;
 				metrics.notes = 1;
 				metrics.attachments = 0;
-				metrics.size = file.stat.size;
+				metrics.size = file.stat?.size;
 				metrics.links = metadata?.links?.length || 0;
 				metrics.words = 0;
 				metrics.words = await this.vault.cachedRead(file).then((content: string) => {
@@ -356,7 +356,7 @@ class FileMetricsCollector {
 				metrics.files = 1;
 				metrics.notes = 0;
 				metrics.attachments = 1;
-				metrics.size = file.stat.size;
+				metrics.size = file.stat?.size;
 				metrics.links = 0;
 				metrics.words = 0;
 				break;
