@@ -1,14 +1,32 @@
-import { App, Vault, TFile, Plugin, debounce } from 'obsidian';
+import { EventRef, Component, App, Vault, TAbstractFile, TFile, Plugin, debounce, MetadataCache, CachedMetadata } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
 	private statusBarItem: StatisticsStatusBarItem = null;
 
+	public fileMetricsCollector: FileMetricsCollector;
+	public vaultMetrics: VaultMetrics;
+
 	update: () => void = debounce(() => { this.statusBarItem.update(); }, 100, true);
 
-	onload() {
+	async onload() {
 		console.log('Loading vault-statistics Plugin');
-		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
+
+		this.vaultMetrics = new VaultMetrics();
+
+		this.fileMetricsCollector = await new FileMetricsCollector(this).
+			setVault(this.app.vault).
+			setMetadataCache(this.app.metadataCache).
+			setVaultMetrics(this.vaultMetrics).
+			start();
+
+		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem()).
+			setVaultMetrics(this.vaultMetrics);
+
+		// TODO: clean up the "update" and "refresh" process since
+		// updates/pulling metrics is now done by the FileMetricsCollector there
+		// should be no reason to attach these events here. Maybe add an event
+		// to the VaultMetrics class?
 		this.registerEvent(this.app.metadataCache.on('resolved', this.update));
 		this.update();
 	}
@@ -108,7 +126,7 @@ class StatisticView {
 	private containerEl: HTMLElement;
 
 	/** Formatter that extracts and formats a value from a {@link Statistics} instance. */
-	private formatter: (s: Statistics) => string;
+	private formatter: (s: VaultMetrics) => string;
 
 	/**
 	 * Constructor.
@@ -131,7 +149,7 @@ class StatisticView {
 	/**
 	 * Sets the formatter to use to produce the content of the view.
 	 */
-	setFormatter(formatter: (s: Statistics) => string): StatisticView {
+	setFormatter(formatter: (s: VaultMetrics) => string): StatisticView {
 		this.formatter = formatter;
 		return this;
 	}
@@ -161,7 +179,7 @@ class StatisticView {
 	 * Refreshes the content of the view with content from the passed {@link
 	 * Statistics}.
 	 */
-	refresh(s: Statistics) {
+	refresh(s: VaultMetrics) {
 		this.containerEl.setText(this.formatter(s));
 	}
 
@@ -173,80 +191,195 @@ class StatisticView {
 	}
 }
 
-interface Statistics {
-	readonly [index: string] : number;
-	notes: number;
-	links: number;
+interface VaultMetrics {
 	files: number;
+	notes: number;
 	attachments: number;
 	size: number;
+	links: number;
+	words: number;
 }
 
-class VaultMetricsCollector {
+class VaultMetrics implements VaultMetrics {
 
-	private vault: Vault;
+	files: number = 0;
+	notes: number = 0;
+	attachments: number = 0;
+	size: number = 0;
+	links: number = 0;
+	words: number = 0;
 
-	constructor(vault: Vault) {
-		this.vault = vault;
+	public reset() {
+		this.files = 0;
+		this.notes = 0;
+		this.attachments = 0;
+		this.size = 0;
+		this.links = 0;
+		this.words = 0;
 	}
 
-	// TODO: Refactor from StatisticsManager
+	public dec(metrics: VaultMetrics) {
+		this.files -= metrics?.files || 0;
+		this.notes -= metrics?.notes || 0;
+		this.attachments -= metrics?.attachments || 0;
+		this.size -= metrics?.size || 0;
+		this.links -= metrics?.links || 0;
+		this.words -= metrics?.words || 0;
+	}
 
+	public inc(metrics: VaultMetrics) {
+		this.files += metrics?.files || 0;
+		this.notes += metrics?.notes || 0;
+		this.attachments += metrics?.attachments || 0;
+		this.size += metrics?.size || 0;
+		this.links += metrics?.links || 0;
+		this.words += metrics?.words || 0;
+	}
 }
 
-interface FileMetrics {
-
+enum FileType {
+	Unknown = 0,
+	Note,
+	Attachment,
 }
 
 class FileMetricsCollector {
 
+	private owner: Component;
 	private vault: Vault;
-	private fileMetrics: Map<TFile, FileMetrics>;
+    private metadataCache: MetadataCache;
+	private data: Map<string, VaultMetrics> = new Map(); // { [key: string]: VaultMetrics } = {};
+	private vaultMetrics: VaultMetrics = new VaultMetrics();
 
-	constructor(vault: Vault) {
+	constructor(owner: Plugin) {
+		this.owner = owner;
+	}
+
+	public setVault(vault: Vault) {
 		this.vault = vault;
+		return this;
 	}
 
-	private updateFileMetrics(file: TFile) {
-		// TODO: Collect file-level metrics such as word count and update this.fileMetrics
-		// TODO: Handle cases where files are renamed or deleted.
-	}
-}
-
-class StatisticsManager {
-
-	/** Handle to the application to pull the statistics from. */
-	private app: App;
-
-	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
-
-	constructor(app: App) {
-		this.app = app;
+	public setMetadataCache(metadataCache: MetadataCache) {
+		this.metadataCache = metadataCache;
+		return this;
 	}
 
-	private update() {
-		// TODO: Refactor to use FileMetricsCollector and VaultMetricsCollector
-		let statistics = {
-			notes: 0,
-			links: 0,
-			files: 0,
-			attachments: 0,
-			size: 0
-		};
-		this.app.vault.getFiles().forEach((f) => {
-			statistics.files += 1;
-			if (f.extension === 'md') {
-				statistics.notes += 1;
-			} else {
-				statistics.attachments += 1;
-			}
-			statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
-			statistics.size += f.stat.size;
+	public setVaultMetrics(vaultMetrics: VaultMetrics) {
+		this.vaultMetrics = vaultMetrics;
+		return this;
+	}
+
+	public start() {
+		this.owner.registerEvent(this.vault.on("create", (file: TFile) => { this.onfilecreated(file) }));
+		this.owner.registerEvent(this.vault.on("modify", (file: TFile) => { this.onfilemodified(file) }));
+		this.owner.registerEvent(this.vault.on("delete", (file: TFile) => { this.onfiledeleted(file) }));
+		this.owner.registerEvent(this.vault.on("rename", (file: TFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
+		// this.owner.registerEvent(this.metadataCache.on("resolve", this.onfilemodified));
+		// this.owner.registerEvent(this.metadataCache.on("changed", this.onfilemodified));
+
+		this.data = new Map();
+		this.vaultMetrics?.reset();
+		this.vault.getFiles().forEach( async (file: TFile) => {
+			this.update(file, await this.collect(file));
 		});
 
-		this.statistics = statistics;
+		return this;
 	}
 
+	private async onfilecreated(file: TFile) {
+		console.log(`onfilecreated(${file?.path})`)
+		this.update(file, await this.collect(file));
+	}
+
+	private async onfilemodified(file: TFile) {
+		console.log(`onfilemodified(${file?.path})`)
+		this.update(file, await this.collect(file));
+	}
+
+	private async onfiledeleted(file: TFile) {
+		console.log(`onfiledeleted(${file?.path})`)
+		this.update(file, null);
+	}
+
+	private async onfilerenamed(file: TFile, oldPath: string) {
+		console.log(`onfilerenamed(${file?.path})`)
+		this.update(oldPath, null);
+		this.update(file, await this.collect(file));
+	}
+
+	private getWordCount(content: string): number {
+		// TODO: test edge cases of this method
+		// TODO: handle lists, punctuation, bullet points, stop words, ...
+		if (content.trim() === "") {
+			return 0;
+		} else {
+			return content.split(/[ ]+/).length;
+		}
+	}
+
+	private getFileType(file: TFile) : FileType {
+		if (file.extension?.toLowerCase() === "md") {
+			return FileType.Note;
+		} else {
+			return FileType.Attachment;
+		}
+	}
+
+	public async collect(file: TFile): Promise<VaultMetrics> {
+		let metrics = new VaultMetrics();
+		let metadata: CachedMetadata = this.metadataCache.getFileCache(file);
+
+		switch (this.getFileType(file)) {
+			case FileType.Note:
+				metrics.files = 1;
+				metrics.notes = 1;
+				metrics.attachments = 0;
+				metrics.size = file.stat.size;
+				metrics.links = metadata?.links?.length || 0;
+				metrics.words = 0;
+				metrics.words = await this.vault.cachedRead(file).then((content: string) => {
+					// Strip frontmatter from the content before calculating the word count
+					if (metadata?.frontmatter) {
+						let startOffset = metadata.frontmatter.position.start.offset;
+						let endOffset = metadata.frontmatter.position.end.offset;
+						content = content.substring(0, startOffset) + content.substring(endOffset);
+					}
+
+					return this.getWordCount(content);
+				}).catch((e) => {
+					console.log(`${file.path} ${e}`);
+					return 0;
+				});
+				break;
+			case FileType.Attachment:
+				metrics.files = 1;
+				metrics.notes = 0;
+				metrics.attachments = 1;
+				metrics.size = file.stat.size;
+				metrics.links = 0;
+				metrics.words = 0;
+				break;
+		}
+
+		return metrics;
+	}
+
+	public update(fileOrPath: TFile|string, metrics: VaultMetrics) {
+		let key = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
+
+		// Remove the existing values for the passed file if present, update the
+		// raw values, then add the values for the passed file to the totals.
+		this.vaultMetrics?.dec(this.data.get(key));
+
+		if (metrics == null) {
+			this.data.delete(key);
+		} else {
+			this.data.set(key, metrics);
+		}
+
+		this.vaultMetrics?.inc(metrics);
+	}
 }
 
 class StatisticsStatusBarItem {
@@ -258,7 +391,7 @@ class StatisticsStatusBarItem {
 	private statusBarItem: HTMLElement;
 
 	// raw stats
-	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
+	private vaultMetrics: VaultMetrics = new VaultMetrics();
 
 	// index of the currently displayed stat.
 	private displayedStatisticIndex = 0;
@@ -271,26 +404,34 @@ class StatisticsStatusBarItem {
 
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("notes").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("notes").format(s.notes)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("notes").format(s.notes)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("attachments").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("files").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("files").format(s.files)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("files").format(s.files)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("links").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("links").format(s.links)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("links").format(s.links)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("words").
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("words").format(s.words)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("size").
-			setFormatter((s: Statistics) => {return new BytesFormatter().format(s.size)}));
+			setFormatter((s: VaultMetrics) => {return new BytesFormatter().format(s.size)}));
 
 		this.statusBarItem.onClickEvent(() => {this.onclick()});
 	}
 
+	public setVaultMetrics(vaultMetrics: VaultMetrics) {
+		this.vaultMetrics = vaultMetrics;
+		return this;
+	}
+
 	private refresh() {
 		this.statisticViews.forEach((view, i) => {
-			view.setActive(this.displayedStatisticIndex == i).refresh(this.statistics);
+			view.setActive(this.displayedStatisticIndex == i).refresh(this.vaultMetrics);
 		});
 
 		this.statusBarItem.title = this.statisticViews.map(view => view.getText()).join("\n");
@@ -302,20 +443,19 @@ class StatisticsStatusBarItem {
 	}
 
 	public update() {
-		// TODO: Use StatisticsManager to collect statistics
-		let statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
-		this.app.vault.getFiles().forEach((f) => {
-			statistics.files += 1;
-			if (f.extension === 'md') {
-				statistics.notes += 1;
-			} else {
-				statistics.attachments += 1;
-			}
-			statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
-			statistics.size += f.stat.size;
-		});
+		// let statistics = new VaultMetrics();
+		// this.app.vault.getFiles().forEach((f) => {
+		// 	statistics.files += 1;
+		// 	if (f.extension === 'md') {
+		// 		statistics.notes += 1;
+		// 	} else {
+		// 		statistics.attachments += 1;
+		// 	}
+		// 	statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
+		// 	statistics.size += f.stat.size;
+		// });
 
-		this.statistics = statistics;
+		// this.statistics = statistics;
 		this.refresh();
 	}
 }
