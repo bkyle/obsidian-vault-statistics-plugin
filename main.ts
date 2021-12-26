@@ -1,4 +1,4 @@
-import { Events, EventRef, Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadata } from 'obsidian';
+import { Events, EventRef, Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadata, TFolder } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
@@ -247,6 +247,7 @@ class FileMetricsCollector {
 	private vault: Vault;
     private metadataCache: MetadataCache;
 	private data: Map<string, VaultMetrics> = new Map();
+	private backlog: Array<string> = new Array();
 	private vaultMetrics: VaultMetrics = new VaultMetrics();
 
 	constructor(owner: Plugin) {
@@ -277,33 +278,60 @@ class FileMetricsCollector {
 		this.owner.registerEvent(this.metadataCache.on("changed", (file: TFile) => { this.onfilemodified(file) }));
 
 		this.data.clear();
+		this.backlog = new Array();
 		this.vaultMetrics?.reset();
-		this.vault.getFiles().forEach( async (file: TFile) => {
-			this.update(file, await this.collect(file));
+		this.vault.getFiles().forEach((file: TFile) => {
+			if (!(file instanceof TFolder)) {
+				this.push(file);
+			}
 		});
+		this.owner.registerInterval(+setInterval(() => { this.processBacklog() }, 2000));
 
 		return this;
 	}
 
+	private push(fileOrPath: TFile|string) {
+		if (fileOrPath instanceof TFolder) {
+			return;
+		}
+
+		let path = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
+		if (!this.backlog.contains(path)) {
+			this.backlog.push(path);
+		}
+	}
+
+	private async processBacklog() {
+		while (this.backlog.length > 0) {
+			let path = this.backlog.shift();
+			// console.log(`processing ${path}`);
+			let file = this.vault.getAbstractFileByPath(path) as TFile;
+			// console.log(`path = ${path}; file = ${file}`);
+			let metrics = await this.collect(file);
+			this.update(path, metrics);
+		}
+		// console.log("done");
+	}
+
 	private async onfilecreated(file: TFile) {
-		console.log(`onfilecreated(${file?.path})`)
-		this.update(file, await this.collect(file));
+		// console.log(`onfilecreated(${file?.path})`);
+		this.push(file);
 	}
 
 	private async onfilemodified(file: TFile) {
-		console.log(`onfilemodified(${file?.path})`)
-		this.update(file, await this.collect(file));
+		// console.log(`onfilemodified(${file?.path})`)
+		this.push(file);
 	}
 
 	private async onfiledeleted(file: TFile) {
-		console.log(`onfiledeleted(${file?.path})`)
-		this.update(file, await this.collect(file));
+		// console.log(`onfiledeleted(${file?.path})`)
+		this.push(file);
 	}
 
 	private async onfilerenamed(file: TFile, oldPath: string) {
-		console.log(`onfilerenamed(${file?.path})`)
-		this.update(oldPath, null);
-		this.update(file, await this.collect(file));
+		// console.log(`onfilerenamed(${file?.path})`)
+		this.push(file);
+		this.push(oldPath);
 	}
 
 	private getWordCount(content: string): number {
@@ -325,8 +353,13 @@ class FileMetricsCollector {
 	}
 
 	public async collect(file: TFile): Promise<VaultMetrics> {
-		let metrics = new VaultMetrics();
 		let metadata: CachedMetadata = this.metadataCache.getFileCache(file);
+
+		if (metadata == null) {
+			return Promise.resolve(null);
+		}
+
+		let metrics = new VaultMetrics();
 
 		switch (this.getFileType(file)) {
 			case FileType.Note:
