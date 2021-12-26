@@ -1,4 +1,4 @@
-import { EventRef, Component, App, Vault, TAbstractFile, TFile, Plugin, debounce, MetadataCache, CachedMetadata } from 'obsidian';
+import { Events, EventRef, Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadata } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
@@ -7,28 +7,19 @@ export default class StatisticsPlugin extends Plugin {
 	public fileMetricsCollector: FileMetricsCollector;
 	public vaultMetrics: VaultMetrics;
 
-	update: () => void = debounce(() => { this.statusBarItem.update(); }, 100, true);
-
 	async onload() {
 		console.log('Loading vault-statistics Plugin');
 
 		this.vaultMetrics = new VaultMetrics();
 
-		this.fileMetricsCollector = await new FileMetricsCollector(this).
+		this.fileMetricsCollector = new FileMetricsCollector(this).
 			setVault(this.app.vault).
 			setMetadataCache(this.app.metadataCache).
 			setVaultMetrics(this.vaultMetrics).
 			start();
 
-		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem()).
+		this.statusBarItem = new StatisticsStatusBarItem(this, this.addStatusBarItem()).
 			setVaultMetrics(this.vaultMetrics);
-
-		// TODO: clean up the "update" and "refresh" process since
-		// updates/pulling metrics is now done by the FileMetricsCollector there
-		// should be no reason to attach these events here. Maybe add an event
-		// to the VaultMetrics class?
-		this.registerEvent(this.app.metadataCache.on('resolved', this.update));
-		this.update();
 	}
 }
 
@@ -200,7 +191,7 @@ interface VaultMetrics {
 	words: number;
 }
 
-class VaultMetrics implements VaultMetrics {
+class VaultMetrics extends Events implements VaultMetrics {
 
 	files: number = 0;
 	notes: number = 0;
@@ -225,6 +216,7 @@ class VaultMetrics implements VaultMetrics {
 		this.size -= metrics?.size || 0;
 		this.links -= metrics?.links || 0;
 		this.words -= metrics?.words || 0;
+		this.trigger("updated");
 	}
 
 	public inc(metrics: VaultMetrics) {
@@ -234,7 +226,13 @@ class VaultMetrics implements VaultMetrics {
 		this.size += metrics?.size || 0;
 		this.links += metrics?.links || 0;
 		this.words += metrics?.words || 0;
+		this.trigger("updated");
 	}
+
+	public on(name: "updated", callback: (vaultMetrics: VaultMetrics) => any, ctx?: any): EventRef {
+		return super.on("updated", callback, ctx);
+	}
+
 }
 
 enum FileType {
@@ -248,7 +246,7 @@ class FileMetricsCollector {
 	private owner: Component;
 	private vault: Vault;
     private metadataCache: MetadataCache;
-	private data: Map<string, VaultMetrics> = new Map(); // { [key: string]: VaultMetrics } = {};
+	private data: Map<string, VaultMetrics> = new Map();
 	private vaultMetrics: VaultMetrics = new VaultMetrics();
 
 	constructor(owner: Plugin) {
@@ -276,9 +274,9 @@ class FileMetricsCollector {
 		this.owner.registerEvent(this.vault.on("delete", (file: TFile) => { this.onfiledeleted(file) }));
 		this.owner.registerEvent(this.vault.on("rename", (file: TFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
 		this.owner.registerEvent(this.metadataCache.on("resolve", (file: TFile) => { this.onfilemodified(file) }));
-		// this.owner.registerEvent(this.metadataCache.on("changed", this.onfilemodified));
+		this.owner.registerEvent(this.metadataCache.on("changed", (file: TFile) => { this.onfilemodified(file) }));
 
-		this.data = new Map();
+		this.data.clear();
 		this.vaultMetrics?.reset();
 		this.vault.getFiles().forEach( async (file: TFile) => {
 			this.update(file, await this.collect(file));
@@ -299,7 +297,7 @@ class FileMetricsCollector {
 
 	private async onfiledeleted(file: TFile) {
 		console.log(`onfiledeleted(${file?.path})`)
-		this.update(file, null);
+		this.update(file, await this.collect(file));
 	}
 
 	private async onfilerenamed(file: TFile, oldPath: string) {
@@ -380,26 +378,26 @@ class FileMetricsCollector {
 
 		this.vaultMetrics?.inc(metrics);
 	}
+
 }
 
 class StatisticsStatusBarItem {
-	
-	// handle of the application to pull stats from.
-	private app: App;
+
+	private owner: Component;
 
 	// handle of the status bar item to draw into.
 	private statusBarItem: HTMLElement;
 
 	// raw stats
-	private vaultMetrics: VaultMetrics = new VaultMetrics();
+	private vaultMetrics: VaultMetrics;
 
 	// index of the currently displayed stat.
 	private displayedStatisticIndex = 0;
 
 	private statisticViews: Array<StatisticView> = [];
 
-	constructor (app: App, statusBarItem: HTMLElement) {
-		this.app = app;
+	constructor (owner: Plugin, statusBarItem: HTMLElement) {
+		this.owner = owner;
 		this.statusBarItem = statusBarItem;
 
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
@@ -421,13 +419,17 @@ class StatisticsStatusBarItem {
 			setStatisticName("size").
 			setFormatter((s: VaultMetrics) => {return new BytesFormatter().format(s.size)}));
 
-		this.statusBarItem.onClickEvent(() => {this.onclick()});
+		this.statusBarItem.onClickEvent(() => { this.onclick() });
 	}
 
 	public setVaultMetrics(vaultMetrics: VaultMetrics) {
 		this.vaultMetrics = vaultMetrics;
+		this.owner.registerEvent(this.vaultMetrics?.on("updated", this.refreshSoon));
+		this.refreshSoon();
 		return this;
 	}
+
+	private refreshSoon = debounce(() => { this.refresh(); }, 2000, false);
 
 	private refresh() {
 		this.statisticViews.forEach((view, i) => {
@@ -439,23 +441,6 @@ class StatisticsStatusBarItem {
 
 	private onclick() {
 		this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.statisticViews.length;
-		this.refresh();
-	}
-
-	public update() {
-		// let statistics = new VaultMetrics();
-		// this.app.vault.getFiles().forEach((f) => {
-		// 	statistics.files += 1;
-		// 	if (f.extension === 'md') {
-		// 		statistics.notes += 1;
-		// 	} else {
-		// 		statistics.attachments += 1;
-		// 	}
-		// 	statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
-		// 	statistics.size += f.stat.size;
-		// });
-
-		// this.statistics = statistics;
 		this.refresh();
 	}
 }
