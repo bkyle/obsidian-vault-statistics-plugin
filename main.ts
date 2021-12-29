@@ -1,16 +1,25 @@
-import { App, Plugin, debounce } from 'obsidian';
+import { Events, EventRef, Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadata, TFolder } from 'obsidian';
 
 export default class StatisticsPlugin extends Plugin {
 
 	private statusBarItem: StatisticsStatusBarItem = null;
 
-	update: () => void = debounce(() => { this.statusBarItem.update(); }, 100, true);
+	public fileMetricsCollector: FileMetricsCollector;
+	public vaultMetrics: VaultMetrics;
 
-	onload() {
+	async onload() {
 		console.log('Loading vault-statistics Plugin');
-		this.statusBarItem = new StatisticsStatusBarItem(this.app, this.addStatusBarItem());
-		this.registerEvent(this.app.metadataCache.on('resolved', this.update));
-		this.update();
+
+		this.vaultMetrics = new VaultMetrics();
+
+		this.fileMetricsCollector = new FileMetricsCollector(this).
+			setVault(this.app.vault).
+			setMetadataCache(this.app.metadataCache).
+			setVaultMetrics(this.vaultMetrics).
+			start();
+
+		this.statusBarItem = new StatisticsStatusBarItem(this, this.addStatusBarItem()).
+			setVaultMetrics(this.vaultMetrics);
 	}
 }
 
@@ -98,15 +107,6 @@ class BytesFormatter extends ScalingUnitFormatter {
 	}
 }
 
-interface Statistics {
-	readonly [index: string] : number;
-	notes: number;
-	links: number;
-	files: number;
-	attachments: number;
-	size: number;
-}
-
 /**
  * {@link StatisticView} is responsible for maintaining the DOM representation
  * of a given statistic.
@@ -117,7 +117,7 @@ class StatisticView {
 	private containerEl: HTMLElement;
 
 	/** Formatter that extracts and formats a value from a {@link Statistics} instance. */
-	private formatter: (s: Statistics) => string;
+	private formatter: (s: VaultMetrics) => string;
 
 	/**
 	 * Constructor.
@@ -140,7 +140,7 @@ class StatisticView {
 	/**
 	 * Sets the formatter to use to produce the content of the view.
 	 */
-	setFormatter(formatter: (s: Statistics) => string): StatisticView {
+	setFormatter(formatter: (s: VaultMetrics) => string): StatisticView {
 		this.formatter = formatter;
 		return this;
 	}
@@ -170,7 +170,7 @@ class StatisticView {
 	 * Refreshes the content of the view with content from the passed {@link
 	 * Statistics}.
 	 */
-	refresh(s: Statistics) {
+	refresh(s: VaultMetrics) {
 		this.containerEl.setText(this.formatter(s));
 	}
 
@@ -182,48 +182,358 @@ class StatisticView {
 	}
 }
 
+interface VaultMetrics {
+	files: number;
+	notes: number;
+	attachments: number;
+	size: number;
+	links: number;
+	words: number;
+}
+
+class VaultMetrics extends Events implements VaultMetrics {
+
+	files: number = 0;
+	notes: number = 0;
+	attachments: number = 0;
+	size: number = 0;
+	links: number = 0;
+	words: number = 0;
+
+	public reset() {
+		this.files = 0;
+		this.notes = 0;
+		this.attachments = 0;
+		this.size = 0;
+		this.links = 0;
+		this.words = 0;
+	}
+
+	public dec(metrics: VaultMetrics) {
+		this.files -= metrics?.files || 0;
+		this.notes -= metrics?.notes || 0;
+		this.attachments -= metrics?.attachments || 0;
+		this.size -= metrics?.size || 0;
+		this.links -= metrics?.links || 0;
+		this.words -= metrics?.words || 0;
+		this.trigger("updated");
+	}
+
+	public inc(metrics: VaultMetrics) {
+		this.files += metrics?.files || 0;
+		this.notes += metrics?.notes || 0;
+		this.attachments += metrics?.attachments || 0;
+		this.size += metrics?.size || 0;
+		this.links += metrics?.links || 0;
+		this.words += metrics?.words || 0;
+		this.trigger("updated");
+	}
+
+	public on(name: "updated", callback: (vaultMetrics: VaultMetrics) => any, ctx?: any): EventRef {
+		return super.on("updated", callback, ctx);
+	}
+
+}
+
+enum FileType {
+	Unknown = 0,
+	Note,
+	Attachment,
+}
+
+interface Tokenizer {
+	tokenize(content: string): Array<string>;
+}
+
+/**
+ * The {@link UnitTokenizer} is a constant tokenizer that always returns an
+ * empty list.
+ */
+class UnitTokenizer implements Tokenizer {
+	public tokenize(_: string): Array<string> {
+		return [];
+	}
+}
+
+/**
+ * {@link MarkdownTokenizer} understands how to tokenize markdown text into word
+ * tokens.
+ */
+class MarkdownTokenizer implements Tokenizer {
+
+	public tokenize(content: string): Array<string> {
+		if (content.trim() === "") {
+			return [];
+		} else {
+			const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]]+/;
+			const NON_WORDS = /^\W+$/;
+			const NUMBER = /^\d+(\.\d+)?$/;
+			const CODE_BLOCK_HEADER = /^```\w+$/;
+			const STRIP_HIGHLIGHTS = /^(==)?(.*?)(==)?$/;
+			const STRIP_FORMATTING = /^(_+|\*+)?(.*?)(_+|\*+)?$/;
+			const STRIP_PUNCTUATION = /^("|`)?(.*?)(`|\.|:|"|,)?$/;
+			const STRIP_WIKI_LINKS = /^(\[\[)?(.*?)(\]\])?$/;
+
+			// TODO: Split on / in token to treat tokens such as "try/catch" as 2 words.
+		    // TODO: Strip formatting symbols from the start/end of tokens (e.g. *, **, __, etc)
+
+			let words = content.
+				split(WORD_BOUNDARY).
+				filter(word => !NON_WORDS.exec(word)).
+				filter(word => !NUMBER.exec(word)).
+				filter(word => !CODE_BLOCK_HEADER.exec(word)).
+				map(word => STRIP_HIGHLIGHTS.exec(word)[2]).
+				map(word => STRIP_FORMATTING.exec(word)[2]).
+				map(word => STRIP_PUNCTUATION.exec(word)[2]).
+				map(word => STRIP_WIKI_LINKS.exec(word)[2]).
+				filter(word => word.length > 0);
+
+			// console.log(words);
+			return words;
+		}
+	}
+}
+
+const unitTokenizer = new UnitTokenizer();
+const markdownTokenizer = new MarkdownTokenizer;
+const tokenizers = new Map([
+	["paragraph", markdownTokenizer],
+	["heading", markdownTokenizer],
+	["list", markdownTokenizer],
+	["table", unitTokenizer],
+	["yaml", unitTokenizer],
+	["code", unitTokenizer],
+	["blockquote", markdownTokenizer],
+	["math", unitTokenizer],
+	["thematicBreak", unitTokenizer],
+	["html", unitTokenizer],
+	["text", unitTokenizer],
+	["element", unitTokenizer],
+	["footnoteDefinition", unitTokenizer],
+	["definition", unitTokenizer],
+]);
+
+class FileMetricsCollector {
+
+	private owner: Component;
+	private vault: Vault;
+    private metadataCache: MetadataCache;
+	private data: Map<string, VaultMetrics> = new Map();
+	private backlog: Array<string> = new Array();
+	private vaultMetrics: VaultMetrics = new VaultMetrics();
+	private tokenizer: Tokenizer = new MarkdownTokenizer();
+
+	constructor(owner: Plugin) {
+		this.owner = owner;
+	}
+
+	public setVault(vault: Vault) {
+		this.vault = vault;
+		return this;
+	}
+
+	public setMetadataCache(metadataCache: MetadataCache) {
+		this.metadataCache = metadataCache;
+		return this;
+	}
+
+	public setVaultMetrics(vaultMetrics: VaultMetrics) {
+		this.vaultMetrics = vaultMetrics;
+		return this;
+	}
+
+	public start() {
+		this.owner.registerEvent(this.vault.on("create", (file: TFile) => { this.onfilecreated(file) }));
+		this.owner.registerEvent(this.vault.on("modify", (file: TFile) => { this.onfilemodified(file) }));
+		this.owner.registerEvent(this.vault.on("delete", (file: TFile) => { this.onfiledeleted(file) }));
+		this.owner.registerEvent(this.vault.on("rename", (file: TFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
+		this.owner.registerEvent(this.metadataCache.on("resolve", (file: TFile) => { this.onfilemodified(file) }));
+		this.owner.registerEvent(this.metadataCache.on("changed", (file: TFile) => { this.onfilemodified(file) }));
+
+		this.data.clear();
+		this.backlog = new Array();
+		this.vaultMetrics?.reset();
+		this.vault.getFiles().forEach((file: TFile) => {
+			if (!(file instanceof TFolder)) {
+				this.push(file);
+			}
+		});
+		this.owner.registerInterval(+setInterval(() => { this.processBacklog() }, 2000));
+
+		return this;
+	}
+
+	private push(fileOrPath: TFile|string) {
+		if (fileOrPath instanceof TFolder) {
+			return;
+		}
+
+		let path = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
+		if (!this.backlog.contains(path)) {
+			this.backlog.push(path);
+		}
+	}
+
+	private async processBacklog() {
+		while (this.backlog.length > 0) {
+			let path = this.backlog.shift();
+			// console.log(`processing ${path}`);
+			let file = this.vault.getAbstractFileByPath(path) as TFile;
+			// console.log(`path = ${path}; file = ${file}`);
+			let metrics = await this.collect(file);
+			this.update(path, metrics);
+		}
+		// console.log("done");
+	}
+
+	private async onfilecreated(file: TFile) {
+		// console.log(`onfilecreated(${file?.path})`);
+		this.push(file);
+	}
+
+	private async onfilemodified(file: TFile) {
+		// console.log(`onfilemodified(${file?.path})`)
+		this.push(file);
+	}
+
+	private async onfiledeleted(file: TFile) {
+		// console.log(`onfiledeleted(${file?.path})`)
+		this.push(file);
+	}
+
+	private async onfilerenamed(file: TFile, oldPath: string) {
+		// console.log(`onfilerenamed(${file?.path})`)
+		this.push(file);
+		this.push(oldPath);
+	}
+
+	private getWordCount(content: string): number {
+		return this.tokenizer.tokenize(content).length;
+	}
+
+	private getFileType(file: TFile) : FileType {
+		if (file.extension?.toLowerCase() === "md") {
+			return FileType.Note;
+		} else {
+			return FileType.Attachment;
+		}
+	}
+
+	public async collect(file: TFile): Promise<VaultMetrics> {
+		let metadata: CachedMetadata = this.metadataCache.getFileCache(file);
+
+		if (metadata == null) {
+			return Promise.resolve(null);
+		}
+
+		let metrics = new VaultMetrics();
+
+		switch (this.getFileType(file)) {
+			case FileType.Note:
+				metrics.files = 1;
+				metrics.notes = 1;
+				metrics.attachments = 0;
+				metrics.size = file.stat?.size;
+				metrics.links = metadata?.links?.length || 0;
+				metrics.words = 0;
+				metrics.words = await this.vault.cachedRead(file).then((content: string) => {
+					return metadata.sections?.map(section => {
+						const sectionType = section.type;
+						const startOffset = section.position?.start?.offset;
+						const endOffset = section.position?.end?.offset;
+						const tokenizer = tokenizers.get(sectionType);
+						const tokens = tokenizer.tokenize(content.substring(startOffset, endOffset));
+						return tokens.length;
+					}).reduce((a, b) => a + b, 0);
+				}).catch((e) => {
+					console.log(`${file.path} ${e}`);
+					return 0;
+				});
+				break;
+			case FileType.Attachment:
+				metrics.files = 1;
+				metrics.notes = 0;
+				metrics.attachments = 1;
+				metrics.size = file.stat?.size;
+				metrics.links = 0;
+				metrics.words = 0;
+				break;
+		}
+
+		return metrics;
+	}
+
+	public update(fileOrPath: TFile|string, metrics: VaultMetrics) {
+		let key = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
+
+		// Remove the existing values for the passed file if present, update the
+		// raw values, then add the values for the passed file to the totals.
+		this.vaultMetrics?.dec(this.data.get(key));
+
+		if (metrics == null) {
+			this.data.delete(key);
+		} else {
+			this.data.set(key, metrics);
+		}
+
+		this.vaultMetrics?.inc(metrics);
+	}
+
+}
+
 class StatisticsStatusBarItem {
-	
-	// handle of the application to pull stats from.
-	private app: App;
+
+	private owner: Component;
 
 	// handle of the status bar item to draw into.
 	private statusBarItem: HTMLElement;
 
 	// raw stats
-	private statistics: Statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
+	private vaultMetrics: VaultMetrics;
 
 	// index of the currently displayed stat.
 	private displayedStatisticIndex = 0;
 
 	private statisticViews: Array<StatisticView> = [];
 
-	constructor (app: App, statusBarItem: HTMLElement) {
-		this.app = app;
+	constructor (owner: Plugin, statusBarItem: HTMLElement) {
+		this.owner = owner;
 		this.statusBarItem = statusBarItem;
 
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("notes").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("notes").format(s.notes)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("notes").format(s.notes)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("attachments").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("attachments").format(s.attachments)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("files").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("files").format(s.files)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("files").format(s.files)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("links").
-			setFormatter((s: Statistics) => {return new DecimalUnitFormatter("links").format(s.links)}));
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("links").format(s.links)}));
+		this.statisticViews.push(new StatisticView(this.statusBarItem).
+			setStatisticName("words").
+			setFormatter((s: VaultMetrics) => {return new DecimalUnitFormatter("words").format(s.words)}));
 		this.statisticViews.push(new StatisticView(this.statusBarItem).
 			setStatisticName("size").
-			setFormatter((s: Statistics) => {return new BytesFormatter().format(s.size)}));
+			setFormatter((s: VaultMetrics) => {return new BytesFormatter().format(s.size)}));
 
-		this.statusBarItem.onClickEvent(() => {this.onclick()});
+		this.statusBarItem.onClickEvent(() => { this.onclick() });
 	}
+
+	public setVaultMetrics(vaultMetrics: VaultMetrics) {
+		this.vaultMetrics = vaultMetrics;
+		this.owner.registerEvent(this.vaultMetrics?.on("updated", this.refreshSoon));
+		this.refreshSoon();
+		return this;
+	}
+
+	private refreshSoon = debounce(() => { this.refresh(); }, 2000, false);
 
 	private refresh() {
 		this.statisticViews.forEach((view, i) => {
-			view.setActive(this.displayedStatisticIndex == i).refresh(this.statistics);
+			view.setActive(this.displayedStatisticIndex == i).refresh(this.vaultMetrics);
 		});
 
 		this.statusBarItem.title = this.statisticViews.map(view => view.getText()).join("\n");
@@ -231,23 +541,6 @@ class StatisticsStatusBarItem {
 
 	private onclick() {
 		this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.statisticViews.length;
-		this.refresh();
-	}
-
-	public update() {
-		let statistics = {notes: 0, links: 0, files: 0, attachments: 0, size: 0};
-		this.app.vault.getFiles().forEach((f) => {
-			statistics.files += 1;
-			if (f.extension === 'md') {
-				statistics.notes += 1;
-			} else {
-				statistics.attachments += 1;
-			}
-			statistics.links += this.app.metadataCache.getCache(f.path)?.links?.length || 0;
-			statistics.size += f.stat.size;
-		});
-
-		this.statistics = statistics;
 		this.refresh();
 	}
 }
