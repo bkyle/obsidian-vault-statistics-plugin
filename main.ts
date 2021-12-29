@@ -241,6 +241,78 @@ enum FileType {
 	Attachment,
 }
 
+interface Tokenizer {
+	tokenize(content: string): Array<string>;
+}
+
+/**
+ * The {@link UnitTokenizer} is a constant tokenizer that always returns an
+ * empty list.
+ */
+class UnitTokenizer implements Tokenizer {
+	public tokenize(_: string): Array<string> {
+		return [];
+	}
+}
+
+/**
+ * {@link MarkdownTokenizer} understands how to tokenize markdown text into word
+ * tokens.
+ */
+class MarkdownTokenizer implements Tokenizer {
+
+	public tokenize(content: string): Array<string> {
+		if (content.trim() === "") {
+			return [];
+		} else {
+			const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]]+/;
+			const NON_WORDS = /^\W+$/;
+			const NUMBER = /^\d+(\.\d+)?$/;
+			const CODE_BLOCK_HEADER = /^```\w+$/;
+			const STRIP_HIGHLIGHTS = /^(==)?(.*?)(==)?$/;
+			const STRIP_FORMATTING = /^(_+|\*+)?(.*?)(_+|\*+)?$/;
+			const STRIP_PUNCTUATION = /^("|`)?(.*?)(`|\.|:|"|,)?$/;
+			const STRIP_WIKI_LINKS = /^(\[\[)?(.*?)(\]\])?$/;
+
+			// TODO: Split on / in token to treat tokens such as "try/catch" as 2 words.
+		    // TODO: Strip formatting symbols from the start/end of tokens (e.g. *, **, __, etc)
+
+			let words = content.
+				split(WORD_BOUNDARY).
+				filter(word => !NON_WORDS.exec(word)).
+				filter(word => !NUMBER.exec(word)).
+				filter(word => !CODE_BLOCK_HEADER.exec(word)).
+				map(word => STRIP_HIGHLIGHTS.exec(word)[2]).
+				map(word => STRIP_FORMATTING.exec(word)[2]).
+				map(word => STRIP_PUNCTUATION.exec(word)[2]).
+				map(word => STRIP_WIKI_LINKS.exec(word)[2]).
+				filter(word => word.length > 0);
+
+			// console.log(words);
+			return words;
+		}
+	}
+}
+
+const unitTokenizer = new UnitTokenizer();
+const markdownTokenizer = new MarkdownTokenizer;
+const tokenizers = new Map([
+	["paragraph", markdownTokenizer],
+	["heading", markdownTokenizer],
+	["list", markdownTokenizer],
+	["table", unitTokenizer],
+	["yaml", unitTokenizer],
+	["code", unitTokenizer],
+	["blockquote", markdownTokenizer],
+	["math", unitTokenizer],
+	["thematicBreak", unitTokenizer],
+	["html", unitTokenizer],
+	["text", unitTokenizer],
+	["element", unitTokenizer],
+	["footnoteDefinition", unitTokenizer],
+	["definition", unitTokenizer],
+]);
+
 class FileMetricsCollector {
 
 	private owner: Component;
@@ -249,6 +321,7 @@ class FileMetricsCollector {
 	private data: Map<string, VaultMetrics> = new Map();
 	private backlog: Array<string> = new Array();
 	private vaultMetrics: VaultMetrics = new VaultMetrics();
+	private tokenizer: Tokenizer = new MarkdownTokenizer();
 
 	constructor(owner: Plugin) {
 		this.owner = owner;
@@ -335,13 +408,7 @@ class FileMetricsCollector {
 	}
 
 	private getWordCount(content: string): number {
-		// TODO: test edge cases of this method
-		// TODO: handle lists, punctuation, bullet points, stop words, ...
-		if (content.trim() === "") {
-			return 0;
-		} else {
-			return content.split(/[ ]+/).length;
-		}
+		return this.tokenizer.tokenize(content).length;
 	}
 
 	private getFileType(file: TFile) : FileType {
@@ -370,14 +437,14 @@ class FileMetricsCollector {
 				metrics.links = metadata?.links?.length || 0;
 				metrics.words = 0;
 				metrics.words = await this.vault.cachedRead(file).then((content: string) => {
-					// Strip frontmatter from the content before calculating the word count
-					if (metadata?.frontmatter) {
-						let startOffset = metadata.frontmatter.position.start.offset;
-						let endOffset = metadata.frontmatter.position.end.offset;
-						content = content.substring(0, startOffset) + content.substring(endOffset);
-					}
-
-					return this.getWordCount(content);
+					return metadata.sections?.map(section => {
+						const sectionType = section.type;
+						const startOffset = section.position?.start?.offset;
+						const endOffset = section.position?.end?.offset;
+						const tokenizer = tokenizers.get(sectionType);
+						const tokens = tokenizer.tokenize(content.substring(startOffset, endOffset));
+						return tokens.length;
+					}).reduce((a, b) => a + b, 0);
 				}).catch((e) => {
 					console.log(`${file.path} ${e}`);
 					return 0;
