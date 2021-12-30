@@ -63,6 +63,10 @@ After copying, toggle the plugin on and off in settings or reload your vault.
 
 ## Version History
 
+### 0.1.0
+
+- Added word count metric (#8)
+
 ### 0.0.8
 
 - Initial support for displaying multiple statistics at the same time. (#6)
