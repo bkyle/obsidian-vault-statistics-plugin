@@ -1,5 +1,5 @@
 import typescript from '@rollup/plugin-typescript';
-import {nodeResolve} from '@rollup/plugin-node-resolve';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 
 export default {
@@ -13,7 +13,7 @@ export default {
   external: ['obsidian', 'electron'],
   plugins: [
     typescript(),
-    nodeResolve({browser: true}),
+    nodeResolve({ browser: true }),
     commonjs(),
   ]
 };
