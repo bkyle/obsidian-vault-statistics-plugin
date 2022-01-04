@@ -18,6 +18,42 @@ class UnitTokenizer implements Tokenizer {
  * tokens.
  */
 class MarkdownTokenizer implements Tokenizer {
+
+  private isNonWord(token: string): boolean {
+    const NON_WORDS = /^\W+$/;
+    return !NON_WORDS.exec(token);
+  }
+
+  private isNumber(token: string): boolean {
+    const NUMBER = /^\d+(\.\d+)?$/;
+    return !NUMBER.exec(token);
+  }
+
+  private isCodeBlockHeader(token: string): boolean {
+    const CODE_BLOCK_HEADER = /^```\w+$/;
+    return !CODE_BLOCK_HEADER.exec(token);
+  }
+
+  private stripHighlights(token: string): string {
+    const STRIP_HIGHLIGHTS = /^(==)?(.*?)(==)?$/;
+    return STRIP_HIGHLIGHTS.exec(token)[2];
+  }
+
+  private stripFormatting(token: string): string {
+    const STRIP_FORMATTING = /^(_+|\*+)?(.*?)(_+|\*+)?$/;
+    return STRIP_FORMATTING.exec(token)[2];
+  }
+
+  private stripPunctuation(token: string): string {
+    const STRIP_PUNCTUATION = /^("|`)?(.*?)(`|\.|:|"|,)?$/;
+    return STRIP_PUNCTUATION.exec(token)[2];
+  }
+
+  private stripWikiLinks(token: string): string {
+    const STRIP_WIKI_LINKS = /^(\[\[)?(.*?)(\]\])?$/;
+    return STRIP_WIKI_LINKS.exec(token)[2];
+  }
+
   public tokenize(content: string): Array<string> {
     if (content.trim() === "") {
       return [];
@@ -44,9 +80,6 @@ class MarkdownTokenizer implements Tokenizer {
         map(word => STRIP_PUNCTUATION.exec(word)[2]).
         map(word => STRIP_WIKI_LINKS.exec(word)[2]).
         filter(word => word.length > 0);
-
-      // console.log(words);
-      //
       return words;
     }
   }
@@ -54,5 +87,13 @@ class MarkdownTokenizer implements Tokenizer {
 
 export const UNIT_TOKENIZER = new UnitTokenizer();
 export const MARKDOWN_TOKENIZER = new MarkdownTokenizer();
+
+export function unit_tokenize(_: string): Array<string> {
+  return UNIT_TOKENIZER.tokenize(_);
+}
+
+export function markdown_tokenize(content: string): Array<string> {
+  return MARKDOWN_TOKENIZER.tokenize(content);
+}
 
 export { };
