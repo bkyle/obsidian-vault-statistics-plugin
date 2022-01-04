@@ -124,4 +124,112 @@ describe("strip punctuation", () => {
     expect(markdown_tokenize("foo]]")).toStrictEqual(["foo"]);
     expect(markdown_tokenize("[[foo]]")).toStrictEqual(["foo"]);
   });
+
+  test("combinations", () => {
+    expect(markdown_tokenize("_**foo**_:]],:`.`")).toStrictEqual(["foo"]);
+  });
+});
+
+describe("integration tests", () => {
+  test("sentences", () => {
+    expect(markdown_tokenize("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")).
+      toStrictEqual([
+        "Lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet",
+        "consectetur",
+        "adipiscing",
+        "elit",
+      ]);
+  });
+
+  test("paragraphs", () => {
+    expect(markdown_tokenize("Lorem ipsum dolor sit amet, consectetur adipiscing elit. \
+Curabitur facilisis iaculis turpis eu viverra. Donec rhoncus sit amet velit vel euismod. \
+Aenean eros orci, tincidunt a odio sed, pellentesque mattis magna. Praesent id turpis \
+placerat, scelerisque sapien pharetra, suscipit erat. Quisque sed consectetur diam, \
+fermentum volutpat dolor. Suspendisse et dictum tellus, in laoreet nisi. Sed nec porta \
+felis. Morbi ultrices metus non metus facilisis mollis. Proin id finibus velit, in \
+blandit nulla. Vivamus id posuere dui.")).
+      toStrictEqual([
+        "Lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet",
+        "consectetur",
+        "adipiscing",
+        "elit",
+        "Curabitur",
+        "facilisis",
+        "iaculis",
+        "turpis",
+        "eu",
+        "viverra",
+        "Donec",
+        "rhoncus",
+        "sit",
+        "amet",
+        "velit",
+        "vel",
+        "euismod",
+        "Aenean",
+        "eros",
+        "orci",
+        "tincidunt",
+        "a",
+        "odio",
+        "sed",
+        "pellentesque",
+        "mattis",
+        "magna",
+        "Praesent",
+        "id",
+        "turpis",
+        "placerat",
+        "scelerisque",
+        "sapien",
+        "pharetra",
+        "suscipit",
+        "erat",
+        "Quisque",
+        "sed",
+        "consectetur",
+        "diam",
+        "fermentum",
+        "volutpat",
+        "dolor",
+        "Suspendisse",
+        "et",
+        "dictum",
+        "tellus",
+        "in",
+        "laoreet",
+        "nisi",
+        "Sed",
+        "nec",
+        "porta",
+        "felis",
+        "Morbi",
+        "ultrices",
+        "metus",
+        "non",
+        "metus",
+        "facilisis",
+        "mollis",
+        "Proin",
+        "id",
+        "finibus",
+        "velit",
+        "in",
+        "blandit",
+        "nulla",
+        "Vivamus",
+        "id",
+        "posuere",
+        "dui",
+      ]);
+  });
 });
