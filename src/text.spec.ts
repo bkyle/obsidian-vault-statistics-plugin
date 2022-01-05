@@ -47,6 +47,10 @@ describe("word boundaries", () => {
   test("[ and ]", () => {
     expect(markdown_tokenize("foo[bar]baz")).toStrictEqual(["foo", "bar", "baz"]);
   });
+
+  test("/", () => {
+    expect(markdown_tokenize("foo/bar")).toStrictEqual(["foo", "bar"]);
+  });
 });
 
 describe("punctuation handling", () => {

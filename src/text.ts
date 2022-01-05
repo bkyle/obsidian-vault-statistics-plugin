@@ -76,11 +76,7 @@ class MarkdownTokenizer implements Tokenizer {
     if (content.trim() === "") {
       return [];
     } else {
-      const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]]+/;
-
-      // TODO: Split on / in token to treat tokens such as "try/catch" as 2 words.
-      // TODO: Strip formatting symbols from the start/end of tokens (e.g. *, **, __, etc)
-
+      const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]/]+/;
       let words = content.
         split(WORD_BOUNDARY).
         filter(token => !this.isNonWord(token)).
