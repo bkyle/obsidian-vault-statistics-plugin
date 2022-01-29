@@ -2,6 +2,17 @@ import { Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadat
 import { BytesFormatter, DecimalUnitFormatter } from './format';
 import { VaultMetrics } from './metrics';
 import { VaultMetricsCollector } from './collect';
+import { StatisticsPluginSettings, StatisticsPluginSettingTab } from './settings';
+
+const DEFAULT_SETTINGS: Partial<StatisticsPluginSettings> = {
+  displayIndividualItems: false,
+  showNotes: false,
+  showAttachments: false,
+  showFiles: false,
+  showLinks: false,
+  showWords: false,
+  showSize: false,
+};
 
 export default class StatisticsPlugin extends Plugin {
 
@@ -10,8 +21,12 @@ export default class StatisticsPlugin extends Plugin {
   public vaultMetricsCollector: VaultMetricsCollector;
   public vaultMetrics: VaultMetrics;
 
+  settings: StatisticsPluginSettings;
+
   async onload() {
     console.log('Loading vault-statistics Plugin');
+    
+    await this.loadSettings();
 
     this.vaultMetrics = new VaultMetrics();
 
@@ -23,6 +38,17 @@ export default class StatisticsPlugin extends Plugin {
 
     this.statusBarItem = new StatisticsStatusBarItem(this, this.addStatusBarItem()).
       setVaultMetrics(this.vaultMetrics);
+
+    this.addSettingTab(new StatisticsPluginSettingTab(this.app, this));
+  }
+
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+  
+  async saveSettings() {
+    await this.saveData(this.settings);
+    this.statusBarItem.refresh();
   }
 }
 
@@ -103,7 +129,7 @@ class StatisticView {
 
 class StatisticsStatusBarItem {
 
-  private owner: Component;
+  private owner: StatisticsPlugin;
 
   // handle of the status bar item to draw into.
   private statusBarItem: HTMLElement;
@@ -116,7 +142,7 @@ class StatisticsStatusBarItem {
 
   private statisticViews: Array<StatisticView> = [];
 
-  constructor(owner: Plugin, statusBarItem: HTMLElement) {
+  constructor(owner: StatisticsPlugin, statusBarItem: HTMLElement) {
     this.owner = owner;
     this.statusBarItem = statusBarItem;
 
@@ -151,16 +177,27 @@ class StatisticsStatusBarItem {
 
   private refreshSoon = debounce(() => { this.refresh(); }, 2000, false);
 
-  private refresh() {
-    this.statisticViews.forEach((view, i) => {
-      view.setActive(this.displayedStatisticIndex == i).refresh(this.vaultMetrics);
-    });
+  public refresh() {
+    if (this.owner.settings.displayIndividualItems) {
+      this.statisticViews[0].setActive(this.owner.settings.showNotes).refresh(this.vaultMetrics);
+      this.statisticViews[1].setActive(this.owner.settings.showAttachments).refresh(this.vaultMetrics);
+      this.statisticViews[2].setActive(this.owner.settings.showFiles).refresh(this.vaultMetrics);
+      this.statisticViews[3].setActive(this.owner.settings.showLinks).refresh(this.vaultMetrics);
+      this.statisticViews[4].setActive(this.owner.settings.showWords).refresh(this.vaultMetrics);
+      this.statisticViews[5].setActive(this.owner.settings.showSize).refresh(this.vaultMetrics);
+    } else {
+      this.statisticViews.forEach((view, i) => {
+        view.setActive(this.displayedStatisticIndex == i).refresh(this.vaultMetrics);
+      });
+    }
 
     this.statusBarItem.title = this.statisticViews.map(view => view.getText()).join("\n");
   }
 
   private onclick() {
-    this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.statisticViews.length;
+    if (!this.owner.settings.displayIndividualItems) {
+      this.displayedStatisticIndex = (this.displayedStatisticIndex + 1) % this.statisticViews.length;
+    }
     this.refresh();
   }
 }
