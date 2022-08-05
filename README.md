@@ -80,13 +80,6 @@ The process of testing, building, and installing has been automated with the `de
 PLUGIN_DIR=... npm run dev
 ```
 
-### Developer's Guide
-
-Use `npm update` to update dependencies
-
-Use `npm audit` and `npm audit fix` to 
-
-
 ## Version History
 
 ### 0.1.1
