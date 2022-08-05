@@ -82,6 +82,11 @@ PLUGIN_DIR=... npm run dev
 
 ## Version History
 
+### 0.1.2
+
+- Added Settings pane
+- Users can now optionally show all or a subset of metrics instead of the default click-to-cycle behaviour (#6)
+
 ### 0.1.1
 
 - Fixed issue when processing files with admonitions (#12)
