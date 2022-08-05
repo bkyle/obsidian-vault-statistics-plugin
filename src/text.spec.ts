@@ -121,6 +121,13 @@ describe("strip punctuation", () => {
     expect(markdown_tokenize("foo:")).toStrictEqual(["foo"]);
     expect(markdown_tokenize("foo.")).toStrictEqual(["foo"]);
     expect(markdown_tokenize("foo,")).toStrictEqual(["foo"]);
+    expect(markdown_tokenize("foo?")).toStrictEqual(["foo"]);
+    expect(markdown_tokenize("foo!")).toStrictEqual(["foo"]);
+  });
+
+  test("callouts", () => {
+    expect(markdown_tokenize("[!foo]")).toStrictEqual(["foo"]);
+    expect(markdown_tokenize("[!foo bar]")).toStrictEqual(["foo", "bar"]);
   });
 
   test("wiki links", () => {
@@ -235,5 +242,17 @@ blandit nulla. Vivamus id posuere dui.")).
         "posuere",
         "dui",
       ]);
+  });
+
+  test("callouts", () => {
+    expect(markdown_tokenize("> [!Lorem]\
+> Ipsum, dolor sit amet.")).
+    toStrictEqual([
+      "Lorem",
+      "Ipsum",
+      "dolor",
+      "sit",
+      "amet",
+    ]);
   });
 });

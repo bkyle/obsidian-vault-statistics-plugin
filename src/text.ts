@@ -45,7 +45,7 @@ class MarkdownTokenizer implements Tokenizer {
   }
 
   private stripPunctuation(token: string): string {
-    const STRIP_PUNCTUATION = /^("|`)?(.*?)(`|\.|:|"|,)?$/;
+    const STRIP_PUNCTUATION = /^(`|\.|:|"|,|!|\?)?(.*?)(`|\.|:|"|,|!|\?)?$/;
     return STRIP_PUNCTUATION.exec(token)[2];
   }
 

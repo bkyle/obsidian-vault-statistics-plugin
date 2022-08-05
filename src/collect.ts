@@ -160,6 +160,7 @@ class NoteMetricsCollector {
     ["element", UNIT_TOKENIZER],
     ["footnoteDefinition", UNIT_TOKENIZER],
     ["definition", UNIT_TOKENIZER],
+    ["callout", MARKDOWN_TOKENIZER],
   ]);
 
   private vault: Vault;
@@ -183,8 +184,14 @@ class NoteMetricsCollector {
         const startOffset = section.position?.start?.offset;
         const endOffset = section.position?.end?.offset;
         const tokenizer = NoteMetricsCollector.TOKENIZERS.get(sectionType);
-        const tokens = tokenizer.tokenize(content.substring(startOffset, endOffset));
-        return tokens.length;
+        if (!tokenizer) {
+          debugger;
+          console.log(`${file.path}: no tokenizer, section.type=${section.type}`);
+          return 0;
+        } else {
+          const tokens = tokenizer.tokenize(content.substring(startOffset, endOffset));
+          return tokens.length;
+        }
       }).reduce((a, b) => a + b, 0);
     }).catch((e) => {
       console.log(`${file.path} ${e}`);
