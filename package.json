@@ -4,9 +4,10 @@
   "description": "Status bar item with vault statistics such as number of notes, files, attachments, and links.",
   "main": "main.js",
   "scripts": {
-    "dev": "rollup --config rollup.config.js -w",
+    "dev": "rollup --config rollup.config.js -w --watch.onStart \"npm run test\" --watch.onEnd \"npm run deploy\"",
+    "test": "npx jest",
     "build": "rollup --config rollup.config.js",
-    "test": "npx jest"
+    "deploy": "cp -v manifest.json main.js styles.css \"${PLUGIN_DIR}\""
   },
   "keywords": [],
   "author": "Bryan Kyle",

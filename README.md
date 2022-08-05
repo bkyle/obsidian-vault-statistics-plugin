@@ -44,22 +44,48 @@ Similarly to the above, one can show certain statistics using a similar method t
 Install the required modules:
 
 ```sh
-npm i
+npm install
 ```
 
-Build the plugin by running:
+Run tests using the `test` script:
+
+```sh
+npm run test
+```
+
+Build `main.js` by running the `build`  script:
 
 ```sh
 npm run build
 ```
 
-The plugin can be tested locally by copying the build output and resource files into the plugin directory in your vault.  The commands below assume the `PLUGIN_DIR` environment variable is set to the absolute path to the directory in your vault's plugins directory that the plugin should be copied into, i.e. `~/Notes/.obsidian/plugins/obsidian-vault-statistics-plugin`.
+Install the plugin into a vault by running the `deploy` script.  This script requires that the `PLUGIN_DIR` environment variable be set to the absolute path to the directory in your vault's plugins directory that the plugin should be copied into, e.g. `~/Notes/.obsidian/plugins/obsidian-vault-statistics-plugin`.
 
 ```sh
-cp -v manifest.json main.js styles.css "${PLUGIN_DIR}"
+PLUGIN_DIR=... npm run deploy
 ```
 
-After copying, toggle the plugin on and off in settings or reload your vault.
+or
+
+```sh
+export PLUGIN_DIR=...
+npm run deploy
+```
+
+After installing the plugin, toggle the plugin on and off in settings or reload your vault to test changes.
+
+The process of testing, building, and installing has been automated with the `dev` script which will perform these actions when there are changes to source files.
+
+```sh
+PLUGIN_DIR=... npm run dev
+```
+
+### Developer's Guide
+
+Use `npm update` to update dependencies
+
+Use `npm audit` and `npm audit fix` to 
+
 
 ## Version History
 
