@@ -89,6 +89,10 @@ Use `npm audit` and `npm audit fix` to
 
 ## Version History
 
+### 0.1.1
+
+- Fixed issue when processing files with admonitions (#12)
+
 ### 0.1.0
 
 - Added word count metric (#8)
