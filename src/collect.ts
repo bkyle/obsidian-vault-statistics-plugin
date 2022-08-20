@@ -185,7 +185,6 @@ class NoteMetricsCollector {
         const endOffset = section.position?.end?.offset;
         const tokenizer = NoteMetricsCollector.TOKENIZERS.get(sectionType);
         if (!tokenizer) {
-          debugger;
           console.log(`${file.path}: no tokenizer, section.type=${section.type}`);
           return 0;
         } else {
