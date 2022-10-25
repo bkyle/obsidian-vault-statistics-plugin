@@ -111,7 +111,17 @@ export class VaultMetricsCollector {
   }
 
   public async collect(file: TFile): Promise<VaultMetrics> {
-    let metadata: CachedMetadata = this.metadataCache.getFileCache(file);
+    let metadata: CachedMetadata;
+    try {
+      metadata = this.metadataCache.getFileCache(file);
+    } catch (e) {
+      // getFileCache indicates that it should return either an instance
+      // of CachedMetadata or null.  The conditions under which a null 
+      // is returned are unspecified.  Empirically, if the file does not
+      // exist, e.g. it's been deleted or renamed then getFileCache will 
+      // throw an exception instead of returning null.
+      metadata = null;
+    }
 
     if (metadata == null) {
       return Promise.resolve(null);
