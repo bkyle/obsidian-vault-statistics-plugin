@@ -7,7 +7,7 @@
     "dev": "rollup --config rollup.config.js -w --watch.onStart \"npm run test\" --watch.onEnd \"npm run deploy\"",
     "test": "npx jest",
     "build": "rollup --config rollup.config.js",
-    "deploy": "cp -v manifest.json main.js styles.css \"${PLUGIN_DIR}\""
+    "deploy": "mkdir -p \"${PLUGIN_DIR:=.sandbox/.obsidian/plugins/vault-statistics-plugin}\"; cp -v manifest.json main.js styles.css \"${PLUGIN_DIR}\""
   },
   "keywords": [],
   "author": "Bryan Kyle",
@@ -18,9 +18,8 @@
     "@rollup/plugin-typescript": "^6.0.0",
     "@types/jest": "^27.4.0",
     "@types/node": "^14.14.2",
-    "electron": "^11.1.0",
     "jest": "^27.4.5",
-    "obsidian": "https://github.com/obsidianmd/obsidian-api/tarball/master",
+    "obsidian": "latest",
     "rollup": "^2.32.1",
     "ts-jest": "^27.1.2",
     "tslib": "^2.0.3",

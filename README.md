@@ -39,46 +39,6 @@ Similarly to the above, one can show certain statistics using a similar method t
 }
 ```
 
-## Building
-
-Install the required modules:
-
-```sh
-npm install
-```
-
-Run tests using the `test` script:
-
-```sh
-npm run test
-```
-
-Build `main.js` by running the `build`  script:
-
-```sh
-npm run build
-```
-
-Install the plugin into a vault by running the `deploy` script.  This script requires that the `PLUGIN_DIR` environment variable be set to the absolute path to the directory in your vault's plugins directory that the plugin should be copied into, e.g. `~/Notes/.obsidian/plugins/obsidian-vault-statistics-plugin`.
-
-```sh
-PLUGIN_DIR=... npm run deploy
-```
-
-or
-
-```sh
-export PLUGIN_DIR=...
-npm run deploy
-```
-
-After installing the plugin, toggle the plugin on and off in settings or reload your vault to test changes.
-
-The process of testing, building, and installing has been automated with the `dev` script which will perform these actions when there are changes to source files.
-
-```sh
-PLUGIN_DIR=... npm run dev
-```
 
 ## Version History
 
