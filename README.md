@@ -42,6 +42,11 @@ Similarly to the above, one can show certain statistics using a similar method t
 
 ## Version History
 
+### 0.1.3
+
+- Fixed issue with deleted and renamed files not correctly updating file statistics (#17)
+- Removed errant `debugger` statement (#14)
+
 ### 0.1.2
 
 - Added Settings pane
