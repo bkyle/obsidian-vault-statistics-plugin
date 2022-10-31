@@ -139,6 +139,12 @@ describe("strip punctuation", () => {
   test("combinations", () => {
     expect(markdown_tokenize("_**foo**_:]],:`.`")).toStrictEqual(["foo"]);
   });
+
+  test("CJK tokens", () => {
+    expect(markdown_tokenize("中文/Chinese")).toStrictEqual(["中", "文", "Chinese"]);
+    expect(markdown_tokenize("日本语/Japanese")).toStrictEqual(["日", "本", "语", "Japanese"]);
+    expect(markdown_tokenize("한글/Korean")).toStrictEqual(["한", "글", "Korean"]);
+  });
 });
 
 describe("integration tests", () => {
