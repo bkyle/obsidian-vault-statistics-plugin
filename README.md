@@ -39,41 +39,61 @@ Similarly to the above, one can show certain statistics using a similar method t
 }
 ```
 
-
 ## Version History
 
-### 0.1.3
+All notable changes to this project will be documented in this file.
 
-- Fixed issue with deleted and renamed files not correctly updating file statistics (#17)
-- Removed errant `debugger` statement (#14)
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### 0.1.2
+### [Unreleased]
 
-- Added Settings pane
-- Users can now optionally show all or a subset of metrics instead of the default click-to-cycle behaviour (#6)
+- Added
+- Changed
+- Deprecated
+- Removed
+- Fixed
+  - Comment sections are explicitly processed and do not count toward statistics (#22)
 
-### 0.1.1
+### [0.1.3] - 2022-10-25
 
-- Fixed issue when processing files with admonitions (#12)
+- Fixed
+  - Fixed issue with deleted and renamed files not correctly updating file statistics (#17)
+  - Removed errant `debugger` statement (#14)
 
-### 0.1.0
+### [0.1.2] - 2022-08-05
 
-- Added word count metric (#8)
+- Added
+  - Added Settings pane
+- Changed
+  - Users can now optionally show all or a subset of metrics instead of the default click-to-cycle behaviour (#6)
 
-### 0.0.8
+### [0.1.1] - 2022-08-05
 
-- Initial support for displaying multiple statistics at the same time. (#6)
+- Fixed
+  - Fixed issue when processing files with admonitions (#12)
 
-### 0.0.6
+### [0.1.0] - 2021-12-30
 
-- FIXED: Reported values only contain 2 significant digits (#7)
+- Added
+  - Added word count metric (#8)
 
-### 0.0.5
+### [0.0.8] - 2021-12-18
 
-- Displayed statistics are formatted with grouping for increase readability.
-- Added Vault Size statistic which calculates the total size of all files in the vault that are understood by Obsidian  The display value is scaled to the appropriate unit.  (#5)
+- Added
+  - Initial support for displaying multiple statistics at the same time. (#6)
 
-### 0.0.4
+### [0.0.6] - 2021-12-14
 
-- Statistics will be calculated automatically as soon as the plugin loads.
+- Fixed
+  - FIXED: Reported values only contain 2 significant digits (#7)
 
+### [0.0.5] - 2021-12-12
+
+- Changed
+  - Displayed statistics are formatted with grouping for increase readability.
+  - Added Vault Size statistic which calculates the total size of all files in the vault that are understood by Obsidian  The display value is scaled to the appropriate unit.  (#5)
+
+### [0.0.4] - 2021-02-25
+
+- Fixed
+  - Statistics will be calculated automatically as soon as the plugin loads.
