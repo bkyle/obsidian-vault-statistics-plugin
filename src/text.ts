@@ -1,4 +1,3 @@
-
 export interface Tokenizer {
   tokenize(content: string): Array<string>;
 }
@@ -72,6 +71,12 @@ class MarkdownTokenizer implements Tokenizer {
     return token;
   }
 
+  private splitCJKToken(content: string): Array<string> {
+    const pattern = /[a-zA-Z0-9_\u0392-\u03c9\u00c0-\u00ff\u0600-\u06ff\u0400-\u04ff]+|[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\uac00-\ud7af]/g;
+    const tokens = content.match(pattern);
+    return tokens ? tokens : [];
+  }
+
   public tokenize(content: string): Array<string> {
     if (content.trim() === "") {
       return [];
@@ -79,10 +84,10 @@ class MarkdownTokenizer implements Tokenizer {
       const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]/]+/;
       let words = content.
         split(WORD_BOUNDARY).
-        filter(token => !this.isNonWord(token)).
         filter(token => !this.isNumber(token)).
         filter(token => !this.isCodeBlockHeader(token)).
         map(token => this.stripAll(token)).
+        flatMap((token) => this.splitCJKToken(token)).
         filter(token => token.length > 0);
       return words;
     }
