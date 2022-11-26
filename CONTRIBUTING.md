@@ -59,10 +59,10 @@ After installing the plugin, toggle the plugin on and off in settings or reload 
 
 ## Automating Build and Deploy
 
-The `dev` script will watch for changes to source files.  When changes are detected the `test`, `build`, and `deploy` scripts are run.
+The `watch` script will watch for changes to source files.  When changes are detected the `test`, `build`, and `deploy` scripts are run.
 
 ```sh
-PLUGIN_DIR=... npm run dev
+PLUGIN_DIR=... npm run watch
 ```
 
 ## Sandbox Vault

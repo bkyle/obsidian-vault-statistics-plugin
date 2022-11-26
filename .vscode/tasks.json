@@ -7,7 +7,15 @@
 			"group": "build",
 			"problemMatcher": [],
 			"label": "npm: build",
-			"detail": "rollup --config rollup.config.js"
+			"detail": "Build"
+		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: watch",
+			"detail": "Watch for file changes and rebuild"
 		}
 	]
 }
