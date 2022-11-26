@@ -171,6 +171,7 @@ class NoteMetricsCollector {
     ["footnoteDefinition", UNIT_TOKENIZER],
     ["definition", UNIT_TOKENIZER],
     ["callout", MARKDOWN_TOKENIZER],
+    ["comment", UNIT_TOKENIZER],
   ]);
 
   private vault: Vault;
