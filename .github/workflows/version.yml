@@ -23,6 +23,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           npm version ${{ github.event.inputs.type }}
+          npm run version-readme
           echo "::set-output name=tag::$(git describe --abbrev=0)"
       - name: Update manifest
         uses: jossef/action-set-json-field@v1
