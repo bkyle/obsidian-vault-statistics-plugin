@@ -1,6 +1,6 @@
 import { Events, EventRef } from 'obsidian';
 
-export interface VaultMetrics {
+export interface VaultMetricsData {
   files: number;
   notes: number;
   attachments: number;
@@ -9,7 +9,7 @@ export interface VaultMetrics {
   words: number;
 }
 
-export class VaultMetrics extends Events implements VaultMetrics {
+export class VaultMetrics extends Events implements VaultMetricsData {
 
   files: number = 0;
   notes: number = 0;
@@ -27,7 +27,7 @@ export class VaultMetrics extends Events implements VaultMetrics {
     this.words = 0;
   }
 
-  public dec(metrics: VaultMetrics) {
+  public dec(metrics: VaultMetricsData | null) {
     this.files -= metrics?.files || 0;
     this.notes -= metrics?.notes || 0;
     this.attachments -= metrics?.attachments || 0;
@@ -37,7 +37,7 @@ export class VaultMetrics extends Events implements VaultMetrics {
     this.trigger("updated");
   }
 
-  public inc(metrics: VaultMetrics) {
+  public inc(metrics: VaultMetricsData | null) {
     this.files += metrics?.files || 0;
     this.notes += metrics?.notes || 0;
     this.attachments += metrics?.attachments || 0;
@@ -47,8 +47,8 @@ export class VaultMetrics extends Events implements VaultMetrics {
     this.trigger("updated");
   }
 
-  public on(name: "updated", callback: (vaultMetrics: VaultMetrics) => any, ctx?: any): EventRef {
-    return super.on("updated", callback, ctx);
+  public on(name: "updated", callback: (vaultMetrics: VaultMetrics) => unknown, ctx?: any): EventRef {
+    return super.on("updated", callback as (...data: any[]) => unknown, ctx);
   }
 
 }

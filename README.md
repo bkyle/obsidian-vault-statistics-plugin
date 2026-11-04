@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Removed
 - Fixed
   - Comment sections are explicitly processed and do not count toward statistics (#22)
+  - Fixed plugin after breaking API changes (#31)
 
 ### [0.1.3] - 2022-10-25
 

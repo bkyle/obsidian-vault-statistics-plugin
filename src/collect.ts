@@ -1,5 +1,5 @@
-import { Component, Vault, MetadataCache, TFile, TFolder, CachedMetadata } from 'obsidian';
-import { VaultMetrics } from './metrics';
+import { Component, Vault, MetadataCache, TFile, TFolder, CachedMetadata, TAbstractFile } from 'obsidian';
+import { VaultMetrics, VaultMetricsData } from './metrics';
 import { MARKDOWN_TOKENIZER, UNIT_TOKENIZER } from './text';
 
 
@@ -14,40 +14,28 @@ export class VaultMetricsCollector {
   private owner: Component;
   private vault: Vault;
   private metadataCache: MetadataCache;
-  private data: Map<string, VaultMetrics> = new Map();
-  private backlog: Array<string> = new Array();
-  private vaultMetrics: VaultMetrics = new VaultMetrics();
+  private data: Map<string, VaultMetricsData> = new Map();
+  private backlog: Array<string> = new Array<string>();
+  private vaultMetrics: VaultMetrics;
 
-  constructor(owner: Component) {
+  constructor(owner: Component, vault: Vault, metadataCache: MetadataCache, vaultMetrics: VaultMetrics) {
     this.owner = owner;
-  }
-
-  public setVault(vault: Vault) {
     this.vault = vault;
-    return this;
-  }
-
-  public setMetadataCache(metadataCache: MetadataCache) {
     this.metadataCache = metadataCache;
-    return this;
-  }
-
-  public setVaultMetrics(vaultMetrics: VaultMetrics) {
     this.vaultMetrics = vaultMetrics;
-    return this;
   }
 
   public start() {
-    this.owner.registerEvent(this.vault.on("create", (file: TFile) => { this.onfilecreated(file) }));
-    this.owner.registerEvent(this.vault.on("modify", (file: TFile) => { this.onfilemodified(file) }));
-    this.owner.registerEvent(this.vault.on("delete", (file: TFile) => { this.onfiledeleted(file) }));
-    this.owner.registerEvent(this.vault.on("rename", (file: TFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
+    this.owner.registerEvent(this.vault.on("create", (file: TAbstractFile) => { this.onfilecreated(file) }));
+    this.owner.registerEvent(this.vault.on("modify", (file: TAbstractFile) => { this.onfilemodified(file) }));
+    this.owner.registerEvent(this.vault.on("delete", (file: TAbstractFile) => { this.onfiledeleted(file) }));
+    this.owner.registerEvent(this.vault.on("rename", (file: TAbstractFile, oldPath: string) => { this.onfilerenamed(file, oldPath) }));
     this.owner.registerEvent(this.metadataCache.on("resolve", (file: TFile) => { this.onfilemodified(file) }));
     this.owner.registerEvent(this.metadataCache.on("changed", (file: TFile) => { this.onfilemodified(file) }));
 
     this.data.clear();
-    this.backlog = new Array();
-    this.vaultMetrics?.reset();
+    this.backlog = new Array<string>();
+    this.vaultMetrics.reset();
     this.vault.getFiles().forEach((file: TFile) => {
       if (!(file instanceof TFolder)) {
         this.push(file);
@@ -58,12 +46,12 @@ export class VaultMetricsCollector {
     return this;
   }
 
-  private push(fileOrPath: TFile | string) {
+  private push(fileOrPath: TAbstractFile | string) {
     if (fileOrPath instanceof TFolder) {
       return;
     }
 
-    let path = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
+    let path = (fileOrPath instanceof TAbstractFile) ? fileOrPath.path : fileOrPath;
     if (!this.backlog.contains(path)) {
       this.backlog.push(path);
     }
@@ -72,31 +60,36 @@ export class VaultMetricsCollector {
   private async processBacklog() {
     while (this.backlog.length > 0) {
       let path = this.backlog.shift();
+      if (!path) {
+        continue;
+      }
       // console.log(`processing ${path}`);
-      let file = this.vault.getAbstractFileByPath(path) as TFile;
+      let file = this.vault.getAbstractFileByPath(path);
       // console.log(`path = ${path}; file = ${file}`);
-      let metrics = await this.collect(file);
-      this.update(path, metrics);
+      if (file) {
+        let metrics = await this.collect(file);
+        this.update(path, metrics);
+      }
     }
     // console.log("done");
   }
 
-  private async onfilecreated(file: TFile) {
+  private onfilecreated(file: TAbstractFile) {
     // console.log(`onfilecreated(${file?.path})`);
     this.push(file);
   }
 
-  private async onfilemodified(file: TFile) {
+  private onfilemodified(file: TAbstractFile) {
     // console.log(`onfilemodified(${file?.path})`)
     this.push(file);
   }
 
-  private async onfiledeleted(file: TFile) {
+  private onfiledeleted(file: TAbstractFile) {
     // console.log(`onfiledeleted(${file?.path})`)
     this.push(file);
   }
 
-  private async onfilerenamed(file: TFile, oldPath: string) {
+  private onfilerenamed(file: TAbstractFile, oldPath: string) {
     // console.log(`onfilerenamed(${file?.path})`)
     this.push(file);
     this.push(oldPath);
@@ -110,8 +103,12 @@ export class VaultMetricsCollector {
     }
   }
 
-  public async collect(file: TFile): Promise<VaultMetrics> {
-    let metadata: CachedMetadata;
+  public async collect(file: TAbstractFile): Promise<VaultMetricsData | null> {
+    if (!(file instanceof TFile)) {
+      return Promise.resolve(null);
+    }
+
+    let metadata: CachedMetadata | null = null;
     try {
       metadata = this.metadataCache.getFileCache(file);
     } catch (e) {
@@ -133,14 +130,16 @@ export class VaultMetricsCollector {
       case FileType.Attachment:
         return new FileMetricsCollector().collect(file, metadata);
     }
+
+    return Promise.resolve(null);
   }
 
-  public update(fileOrPath: TFile | string, metrics: VaultMetrics) {
+  public update(fileOrPath: TFile | string, metrics: VaultMetricsData | null) {
     let key = (fileOrPath instanceof TFile) ? fileOrPath.path : fileOrPath;
 
     // Remove the existing values for the passed file if present, update the
     // raw values, then add the values for the passed file to the totals.
-    this.vaultMetrics?.dec(this.data.get(key));
+    this.vaultMetrics?.dec(this.data.get(key) || null);
 
     if (metrics == null) {
       this.data.delete(key);
@@ -196,15 +195,15 @@ class NoteMetricsCollector {
         const endOffset = section.position?.end?.offset;
         const tokenizer = NoteMetricsCollector.TOKENIZERS.get(sectionType);
         if (!tokenizer) {
-          console.log(`${file.path}: no tokenizer, section.type=${section.type}`);
+          // console.log(`${file.path}: no tokenizer, section.type=${section.type}`);
           return 0;
         } else {
           const tokens = tokenizer.tokenize(content.substring(startOffset, endOffset));
           return tokens.length;
         }
-      }).reduce((a, b) => a + b, 0);
+      }).reduce((a, b) => a + b, 0) || 0;
     }).catch((e) => {
-      console.log(`${file.path} ${e}`);
+      // console.log(`${file.path} ${e}`);
       return 0;
     });
 
@@ -214,7 +213,7 @@ class NoteMetricsCollector {
 
 class FileMetricsCollector {
 
-  public async collect(file: TFile, metadata: CachedMetadata): Promise<VaultMetrics> {
+  public async collect(file: TFile, metadata: CachedMetadata): Promise<VaultMetricsData> {
     let metrics = new VaultMetrics();
     metrics.files = 1;
     metrics.notes = 0;

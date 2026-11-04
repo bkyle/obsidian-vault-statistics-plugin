@@ -80,6 +80,6 @@ export class BytesFormatter extends ScalingUnitFormatter {
       value = value / 1024
       units.shift();
     }
-    return [value, units[0]];
+    return [value, units[0] ?? ""];
   }
 }

@@ -1,10 +1,11 @@
-import { Component, Vault, TFile, Plugin, debounce, MetadataCache, CachedMetadata, TFolder } from 'obsidian';
+import { TFile, Plugin, debounce } from 'obsidian';
 import { BytesFormatter, DecimalUnitFormatter } from './format';
 import { VaultMetrics } from './metrics';
 import { VaultMetricsCollector } from './collect';
 import { StatisticsPluginSettings, StatisticsPluginSettingTab } from './settings';
 
-const DEFAULT_SETTINGS: Partial<StatisticsPluginSettings> = {
+// const DEFAULT_SETTINGS: Partial<StatisticsPluginSettings> = {
+const DEFAULT_SETTINGS = {
   displayIndividualItems: false,
   showNotes: false,
   showAttachments: false,
@@ -16,39 +17,33 @@ const DEFAULT_SETTINGS: Partial<StatisticsPluginSettings> = {
 
 export default class StatisticsPlugin extends Plugin {
 
-  private statusBarItem: StatisticsStatusBarItem = null;
+  private statusBarItem: StatisticsStatusBarItem | null = null;
 
-  public vaultMetricsCollector: VaultMetricsCollector;
-  public vaultMetrics: VaultMetrics;
+  public vaultMetricsCollector: VaultMetricsCollector | null = null;
+  public vaultMetrics: VaultMetrics | null = null;
 
-  settings: StatisticsPluginSettings;
+  settings: StatisticsPluginSettings = DEFAULT_SETTINGS;
 
   async onload() {
-    console.log('Loading vault-statistics Plugin');
-    
     await this.loadSettings();
 
     this.vaultMetrics = new VaultMetrics();
 
-    this.vaultMetricsCollector = new VaultMetricsCollector(this).
-      setVault(this.app.vault).
-      setMetadataCache(this.app.metadataCache).
-      setVaultMetrics(this.vaultMetrics).
-      start();
+    this.vaultMetricsCollector = new VaultMetricsCollector(this, this.app.vault, this.app.metadataCache, this.vaultMetrics);
+    this.vaultMetricsCollector.start();
 
-    this.statusBarItem = new StatisticsStatusBarItem(this, this.addStatusBarItem()).
-      setVaultMetrics(this.vaultMetrics);
+    this.statusBarItem = new StatisticsStatusBarItem(this, this.addStatusBarItem(), this.vaultMetrics);
 
     this.addSettingTab(new StatisticsPluginSettingTab(this.app, this));
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData()) as StatisticsPluginSettings;
   }
   
   async saveSettings() {
     await this.saveData(this.settings);
-    this.statusBarItem.refresh();
+    this.statusBarItem?.refresh();
   }
 }
 
@@ -62,7 +57,7 @@ class StatisticView {
   private containerEl: HTMLElement;
 
   /** Formatter that extracts and formats a value from a {@link Statistics} instance. */
-  private formatter: (s: VaultMetrics) => string;
+  private formatter: (s: VaultMetrics) => string = (_: VaultMetrics) => "";
 
   /**
    * Constructor.
@@ -141,50 +136,43 @@ class StatisticsStatusBarItem {
   private displayedStatisticIndex = 0;
 
   private statisticViews: Array<StatisticView> = [];
+  private notesView: StatisticView | null = null;
+  private attachmentsView: StatisticView | null = null;
+  private filesView: StatisticView | null = null;
+  private linksView: StatisticView | null = null;
+  private wordsView: StatisticView | null = null;
+  private sizeView: StatisticView | null = null;
 
-  constructor(owner: StatisticsPlugin, statusBarItem: HTMLElement) {
+  constructor(owner: StatisticsPlugin, statusBarItem: HTMLElement, vaultMetrics: VaultMetrics) {
     this.owner = owner;
     this.statusBarItem = statusBarItem;
 
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("notes").
-      setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("notes").format(s.notes) }));
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("attachments").
-      setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("attachments").format(s.attachments) }));
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("files").
-      setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("files").format(s.files) }));
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("links").
-      setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("links").format(s.links) }));
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("words").
-      setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("words").format(s.words) }));
-    this.statisticViews.push(new StatisticView(this.statusBarItem).
-      setStatisticName("size").
-      setFormatter((s: VaultMetrics) => { return new BytesFormatter().format(s.size) }));
+    this.notesView = new StatisticView(this.statusBarItem).setStatisticName("notes").setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("notes").format(s.notes) });
+    this.attachmentsView = new StatisticView(this.statusBarItem).setStatisticName("attachments").setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("attachments").format(s.attachments) });
+    this.filesView = new StatisticView(this.statusBarItem).setStatisticName("files").setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("files").format(s.files) });
+    this.linksView = new StatisticView(this.statusBarItem).setStatisticName("links").setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("links").format(s.links) });
+    this.wordsView = new StatisticView(this.statusBarItem).setStatisticName("words").setFormatter((s: VaultMetrics) => { return new DecimalUnitFormatter("words").format(s.words) });
+    this.sizeView = new StatisticView(this.statusBarItem).setStatisticName("size").setFormatter((s: VaultMetrics) => { return new BytesFormatter().format(s.size) });
+    this.statisticViews = [this.notesView, this.attachmentsView, this.filesView, this.linksView, this.wordsView, this.sizeView];
 
-    this.statusBarItem.onClickEvent(() => { this.onclick() });
-  }
-
-  public setVaultMetrics(vaultMetrics: VaultMetrics) {
     this.vaultMetrics = vaultMetrics;
-    this.owner.registerEvent(this.vaultMetrics?.on("updated", this.refreshSoon));
+    this.owner.registerEvent(this.vaultMetrics.on("updated", this.refreshSoon));
+    
+    this.statusBarItem.onClickEvent(() => { this.onclick() });
+
     this.refreshSoon();
-    return this;
   }
 
   private refreshSoon = debounce(() => { this.refresh(); }, 2000, false);
 
   public refresh() {
-    if (this.owner.settings.displayIndividualItems) {
-      this.statisticViews[0].setActive(this.owner.settings.showNotes).refresh(this.vaultMetrics);
-      this.statisticViews[1].setActive(this.owner.settings.showAttachments).refresh(this.vaultMetrics);
-      this.statisticViews[2].setActive(this.owner.settings.showFiles).refresh(this.vaultMetrics);
-      this.statisticViews[3].setActive(this.owner.settings.showLinks).refresh(this.vaultMetrics);
-      this.statisticViews[4].setActive(this.owner.settings.showWords).refresh(this.vaultMetrics);
-      this.statisticViews[5].setActive(this.owner.settings.showSize).refresh(this.vaultMetrics);
+    if (this.owner.settings?.displayIndividualItems) {
+      this.notesView?.setActive(this.owner.settings.showNotes).refresh(this.vaultMetrics);
+      this.attachmentsView?.setActive(this.owner.settings.showAttachments).refresh(this.vaultMetrics);
+      this.filesView?.setActive(this.owner.settings.showFiles).refresh(this.vaultMetrics);
+      this.linksView?.setActive(this.owner.settings.showLinks).refresh(this.vaultMetrics);
+      this.wordsView?.setActive(this.owner.settings.showWords).refresh(this.vaultMetrics);
+      this.sizeView?.setActive(this.owner.settings.showSize).refresh(this.vaultMetrics);
     } else {
       this.statisticViews.forEach((view, i) => {
         view.setActive(this.displayedStatisticIndex == i).refresh(this.vaultMetrics);

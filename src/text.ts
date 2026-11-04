@@ -36,22 +36,26 @@ class MarkdownTokenizer implements Tokenizer {
 
   private stripHighlights(token: string): string {
     const STRIP_HIGHLIGHTS = /^(==)?(.*?)(==)?$/;
-    return STRIP_HIGHLIGHTS.exec(token)[2];
+    const matches = STRIP_HIGHLIGHTS.exec(token);
+    return matches && matches[2] || token;
   }
 
   private stripFormatting(token: string): string {
     const STRIP_FORMATTING = /^(_+|\*+)?(.*?)(_+|\*+)?$/;
-    return STRIP_FORMATTING.exec(token)[2];
+    const matches = STRIP_FORMATTING.exec(token);
+    return matches && matches[2] || token;
   }
 
   private stripPunctuation(token: string): string {
     const STRIP_PUNCTUATION = /^(`|\.|:|"|,|!|\?)?(.*?)(`|\.|:|"|,|!|\?)?$/;
-    return STRIP_PUNCTUATION.exec(token)[2];
+    const matches = STRIP_PUNCTUATION.exec(token);
+    return matches && matches[2] || token;
   }
 
   private stripWikiLinks(token: string): string {
     const STRIP_WIKI_LINKS = /^(\[\[)?(.*?)(\]\])?$/;
-    return STRIP_WIKI_LINKS.exec(token)[2];
+    const matches = STRIP_WIKI_LINKS.exec(token);
+    return matches && matches[2] || token;
   }
 
   private stripAll(token: string): string {
@@ -63,10 +67,10 @@ class MarkdownTokenizer implements Tokenizer {
     while (!isFixedPoint) {
       let prev = token;
       token = [token].
-        map(this.stripHighlights).
-        map(this.stripFormatting).
-        map(this.stripPunctuation).
-        map(this.stripWikiLinks)[0];
+        map((value) => this.stripHighlights(value)).
+        map((value) => this.stripFormatting(value)).
+        map((value) => this.stripPunctuation(value)).
+        map((value) => this.stripWikiLinks(value))[0] || token;
       isFixedPoint = isFixedPoint || prev === token;
     }
     return token;
@@ -76,7 +80,7 @@ class MarkdownTokenizer implements Tokenizer {
     if (content.trim() === "") {
       return [];
     } else {
-      const WORD_BOUNDARY = /[ \n\r\t\"\|,\(\)\[\]/]+/;
+      const WORD_BOUNDARY = /[ \n\r\t"|,()[\]/]+/;
       let words = content.
         split(WORD_BOUNDARY).
         filter(token => !this.isNonWord(token)).
