@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "npx jest",
     "deploy": "mkdir -p \"${PLUGIN_DIR:=.sandbox/.obsidian/plugins/vault-statistics-plugin}\"; cp -v manifest.json main.js styles.css \"${PLUGIN_DIR}\"",
-    "version-readme": "node scripts/version-readme.js"
+    "version-readme": "npx tsx scripts/version-readme.ts"
   },
   "keywords": [],
   "author": "Bryan Kyle",
